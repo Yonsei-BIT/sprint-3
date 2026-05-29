@@ -1,6 +1,6 @@
 # Eatween — 그룹 식당 추천 서비스
 
-여러 명의 식이 제한과 취향을 입력하면 모두가 먹을 수 있는 식당을 추천해주는 웹 서비스입니다.
+여러 명이 각자의 제약조건을 입력하면 모두가 먹을 수 있는 메뉴와 식당을 함께 추천해주는 웹 서비스입니다. 친구들과 현장에서 바로 쓸 수 있도록 설계되었습니다.
 
 🔗 **배포 주소**: https://food-together.vercel.app  
 🔗 **GitHub (소스코드)**: https://github.com/jeongyuna620/food-together
