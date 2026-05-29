@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f7f8;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --line: #dbe4ea;
+  --accent: #0f766e;
+  --accent-strong: #0f3f46;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #eef4f5 0%, var(--background) 220px);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent-strong);
+  color: white;
+}
+
+.input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  padding: 0.7rem 0.8rem;
+  color: #0f172a;
+  outline: none;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.02);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.input::placeholder {
+  color: #94a3b8;
+}
+
+.input:hover {
+  border-color: #b6c5ce;
+  background: #fbfdfe;
+}
+
+.input:focus {
+  border-color: var(--accent);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+}
+
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  border-radius: 0.5rem;
+  background: var(--accent-strong);
+  padding: 0.75rem 1rem;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(15, 63, 70, 0.16);
+  transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.action-link:hover {
+  background: #155e75;
+  box-shadow: 0 12px 24px rgba(15, 63, 70, 0.2);
+  transform: translateY(-1px);
+}
+
+.contact-link,
+.contact-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  padding: 0.45rem 0.65rem;
+  color: #334155;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.contact-link:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}

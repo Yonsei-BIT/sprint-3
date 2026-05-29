@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: societybridge-ai
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- -p $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: OPENAI_VISION_MODEL
+        value: gpt-4.1-mini
+      - key: OPENAI_API_KEY
+        sync: false
