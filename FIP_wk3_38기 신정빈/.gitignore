@@ -1,0 +1,8 @@
+node_modules
+.next
+.npm-cache
+.codex-screenshots
+.env
+.env*.local
+.DS_Store
+*.log
