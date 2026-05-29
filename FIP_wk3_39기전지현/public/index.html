@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>DocuAI — 서류 AI 분석기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --primary: #4f6ef7;
+      --primary-light: #eef1fe;
+      --text: #1a1d2e;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --warning: #f59e0b;
+      --warning-light: #fffbeb;
+      --danger: #ef4444;
+      --danger-light: #fef2f2;
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.07);
+    }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 80px;
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #1a1d2e; color: white;
+      padding: 11px 20px; border-radius: 99px;
+      font-size: 14px; font-weight: 600;
+      opacity: 0; transition: all 0.25s; z-index: 999;
+      white-space: nowrap; pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* HEADER */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
+    .logo { display: flex; align-items: center; gap: 8px; }
+    .logo-icon {
+      width: 30px; height: 30px;
+      background: var(--primary); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 15px;
+    }
+    .logo-text { font-weight: 700; font-size: 17px; }
+    .logo-text span { color: var(--primary); }
+
+    /* BOTTOM NAV */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 200;
+    }
+    .nav-tab {
+      flex: 1; padding: 10px 8px 14px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 3px;
+      cursor: pointer;
+      border: none; background: none;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px; font-weight: 500;
+      transition: color 0.15s;
+    }
+    .nav-tab .nav-icon { font-size: 22px; line-height: 1; }
+    .nav-tab.active { color: var(--primary); }
+
+    /* PAGES */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* MAIN CONTENT */
+    .content { max-width: 640px; margin: 0 auto; padding: 12px 12px; }
+
+    /* ── ANALYZE PAGE ── */
+    .hero {
+      text-align: center; margin-bottom: 14px;
+    }
+    .hero h1 { font-size: 19px; font-weight: 700; line-height: 1.4; }
+    .hero h1 em { font-style: normal; color: var(--primary); }
+    .hero p { display: none; }
+
+    /* DOC TYPE */
+    .section-label {
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .doc-types {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: 10px;
+    }
+    .doc-type-btn {
+      padding: 7px 14px; border-radius: 99px;
+      border: 1.5px solid var(--border);
+      background: var(--card); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; color: var(--text);
+    }
+    .doc-type-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .doc-type-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+
+    /* INPUT METHODS */
+    .input-methods { display: flex; gap: 8px; margin-bottom: 10px; }
+    .method-btn {
+      flex: 1; padding: 10px 8px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      cursor: pointer; text-align: center;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .method-btn:hover { border-color: var(--primary); }
+    .method-btn.active { border-color: var(--primary); background: var(--primary-light); }
+    .method-btn .method-icon { font-size: 22px; margin-bottom: 2px; }
+    .method-btn .method-label { font-size: 13px; font-weight: 600; color: var(--text); }
+    .method-btn .method-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    /* CAMERA */
+    #camera-section { display: none; }
+    .camera-wrapper {
+      background: #000;
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      aspect-ratio: 3/4;
+      max-height: 72vh;
+      margin-bottom: 12px;
+    }
+    #camera-video {
+      width: 100%; height: 100%;
+      object-fit: contain; display: block;
+    }
+    .camera-overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .scan-frame {
+      width: 75%; height: 75%;
+      border: 2.5px solid rgba(255,255,255,0.7);
+      border-radius: 10px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
+    }
+    .scan-corner {
+      position: absolute;
+      width: 20px; height: 20px;
+      border-color: var(--primary);
+      border-style: solid;
+    }
+    .scan-corner.tl { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+    .scan-corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+    .scan-corner.bl { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+    .scan-corner.br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+    .camera-hint {
+      position: absolute; bottom: 12px; left: 0; right: 0;
+      text-align: center; color: rgba(255,255,255,0.85);
+      font-size: 12px; font-weight: 500;
+    }
+    .camera-controls {
+      display: flex; align-items: center; justify-content: center;
+      gap: 20px; margin-bottom: 12px;
+    }
+    .shutter-btn {
+      width: 68px; height: 68px; border-radius: 50%;
+      background: white; border: 4px solid var(--primary);
+      cursor: pointer; transition: transform 0.1s;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+    .shutter-btn:active { transform: scale(0.93); }
+    .flip-btn, .cancel-camera-btn {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(0,0,0,0.08); border: none;
+      cursor: pointer; font-size: 20px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #camera-error {
+      display: none;
+      background: var(--danger-light); color: #991b1b;
+      border-radius: var(--radius); padding: 14px;
+      font-size: 14px; line-height: 1.6; margin-bottom: 12px;
+    }
+
+    /* UPLOAD */
+    #upload-section { display: none; }
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      margin-bottom: 12px;
+    }
+    .upload-area:hover, .upload-area.drag-over {
+      border-color: var(--primary); background: var(--primary-light);
+    }
+    .upload-area input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 36px; margin-bottom: 10px; }
+    .upload-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .upload-sub { font-size: 13px; color: var(--muted); }
+
+    /* PAGES STRIP */
+    #pages-section { display: none; margin-bottom: 12px; }
+    .pages-label {
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .pages-strip {
+      display: flex; gap: 8px; overflow-x: auto;
+      padding-bottom: 6px;
+    }
+    .pages-strip::-webkit-scrollbar { height: 4px; }
+    .pages-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .page-thumb-wrap {
+      position: relative; flex-shrink: 0;
+      width: 80px; height: 100px;
+      border-radius: 8px; overflow: hidden;
+      border: 2px solid var(--border);
+      background: var(--bg);
+      cursor: default;
+    }
+    .page-thumb-wrap.active-page { border-color: var(--primary); }
+    .page-thumb {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .page-num {
+      position: absolute; bottom: 4px; left: 0; right: 0;
+      text-align: center; font-size: 10px; font-weight: 700;
+      color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+    .page-del {
+      position: absolute; top: 3px; right: 3px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(0,0,0,0.55); border: none;
+      color: white; font-size: 10px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .page-add-btn {
+      flex-shrink: 0; width: 80px; height: 100px;
+      border-radius: 8px; border: 2px dashed var(--border);
+      background: var(--card);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 4px; cursor: pointer; font-family: inherit;
+      color: var(--muted); font-size: 11px; font-weight: 600;
+      transition: all 0.15s;
+    }
+    .page-add-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .page-add-icon { font-size: 22px; }
+
+    /* FILE CHIP */
+    .file-chip {
+      display: none; align-items: center; gap: 10px;
+      background: var(--primary-light); border: 1.5px solid var(--primary);
+      border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px;
+    }
+    .file-chip.visible { display: flex; }
+    .file-chip-name { flex: 1; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-chip-size { font-size: 11px; color: var(--muted); }
+    .file-chip-remove { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 16px; }
+
+    /* DOC NAME INPUT */
+    .doc-name-wrap {
+      display: none; margin-bottom: 12px;
+    }
+    .doc-name-wrap.visible { display: block; }
+    .doc-name-input {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid var(--border); border-radius: var(--radius);
+      font-family: inherit; font-size: 14px; color: var(--text);
+      background: var(--card);
+      transition: border-color 0.15s;
+    }
+    .doc-name-input:focus { outline: none; border-color: var(--primary); }
+    .doc-name-input::placeholder { color: var(--muted); }
+
+    /* ANALYZE BTN */
+    .analyze-btn-wrap {
+      position: fixed; bottom: 64px; left: 0; right: 0;
+      padding: 10px 16px;
+      background: linear-gradient(to top, var(--bg) 70%, transparent);
+      z-index: 150;
+      max-width: 640px; margin: 0 auto;
+    }
+    .analyze-btn {
+      width: 100%; padding: 15px;
+      background: var(--primary); color: white;
+      border: none; border-radius: var(--radius);
+      font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-family: inherit;
+      box-shadow: 0 4px 20px rgba(79,110,247,0.4);
+    }
+    .analyze-btn:hover:not(:disabled) { background: #3d5be0; }
+    .analyze-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+    /* ERROR */
+    .error-box {
+      display: none;
+      background: var(--danger-light); border: 1px solid #fca5a5;
+      border-radius: var(--radius); padding: 14px;
+      color: #991b1b; font-size: 14px; margin-bottom: 12px;
+    }
+    .error-box.visible { display: block; }
+
+    /* LOADING */
+    #loading {
+      display: none; text-align: center; padding: 48px 20px;
+    }
+    #loading.visible { display: block; }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid var(--border); border-top-color: var(--primary);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 15px; color: var(--muted); font-weight: 500; }
+    .loading-sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+    /* ACTION CARDS */
+    .actions-card {
+      background: linear-gradient(135deg, #4f6ef7 0%, #6c8bff 100%);
+      border-radius: var(--radius); padding: 16px;
+      margin-bottom: 14px; color: white;
+    }
+    .actions-title {
+      font-size: 12px; font-weight: 700; opacity: 0.85;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+    .action-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 7px;
+    }
+    .action-item:last-child { margin-bottom: 0; }
+    .action-when {
+      font-size: 10px; font-weight: 700;
+      background: rgba(255,255,255,0.25);
+      padding: 2px 8px; border-radius: 99px;
+      white-space: nowrap; margin-top: 1px;
+    }
+    .action-what { font-size: 13px; line-height: 1.5; }
+
+    /* VISUAL TABLE */
+    .doc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .doc-table th {
+      background: var(--primary); color: white;
+      padding: 8px 10px; text-align: left; font-weight: 600;
+    }
+    .doc-table th:first-child { border-radius: 6px 0 0 0; }
+    .doc-table th:last-child { border-radius: 0 6px 0 0; }
+    .doc-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table tr:nth-child(even) td { background: #fafbff; }
+    .cell-ok { color: var(--success); font-weight: 700; font-size: 16px; }
+    .cell-no { color: var(--danger); font-weight: 700; font-size: 16px; }
+    .cell-maybe { color: var(--warning); font-weight: 700; font-size: 16px; }
+
+    /* STEPS */
+    .steps-list { display: flex; flex-direction: column; gap: 0; }
+    .step-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .step-item:last-child { border-bottom: none; }
+    .step-num {
+      width: 26px; height: 26px; flex-shrink: 0;
+      background: var(--primary); color: white;
+      border-radius: 50%; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; margin-top: 1px;
+    }
+    .step-text { font-size: 14px; line-height: 1.6; flex: 1; }
+
+    /* CHAT */
+    .chat-wrap {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .chat-header {
+      padding: 14px 16px 12px;
+      background: linear-gradient(135deg,#4f6ef7,#6c8bff);
+      color: white;
+    }
+    .chat-header-title {
+      font-size: 15px; font-weight: 700;
+    }
+    .chat-header-sub {
+      font-size: 12px; opacity: 0.85; margin-top: 4px;
+    }
+    .chat-suggestions {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+    }
+    .chat-suggestion {
+      background: rgba(255,255,255,0.2); border: none;
+      color: white; border-radius: 99px; padding: 5px 12px;
+      font-size: 12px; font-family: inherit; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .chat-suggestion:hover { background: rgba(255,255,255,0.35); }
+    .chat-messages {
+      padding: 14px; display: flex;
+      flex-direction: column; gap: 10px;
+      min-height: 80px; max-height: 320px; overflow-y: auto;
+    }
+    .chat-empty {
+      text-align: center; color: var(--muted);
+      font-size: 13px; padding: 16px 0;
+    }
+    .chat-msg {
+      max-width: 88%; padding: 10px 14px;
+      border-radius: 14px; font-size: 14px; line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .chat-msg.user {
+      background: var(--primary); color: white;
+      align-self: flex-end; border-bottom-right-radius: 4px;
+    }
+    .chat-msg.ai {
+      background: #f1f3ff; color: var(--text);
+      align-self: flex-start; border-bottom-left-radius: 4px;
+      border: 1px solid #e0e7ff;
+    }
+    .chat-msg.typing { opacity: 0.55; font-style: italic; }
+    .chat-input-row {
+      display: flex; gap: 8px;
+      padding: 12px; border-top: 1px solid var(--border);
+    }
+    .chat-input {
+      flex: 1; padding: 11px 14px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-family: inherit; font-size: 14px;
+      background: var(--bg);
+    }
+    .chat-input:focus { outline: none; border-color: var(--primary); }
+    .chat-send {
+      padding: 11px 18px; background: var(--primary); color: white;
+      border: none; border-radius: 10px; cursor: pointer;
+      font-family: inherit; font-size: 14px; font-weight: 700;
+      white-space: nowrap;
+    }
+    .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* RESULTS */
+    #results { display: none; }
+    #results.visible { display: block; }
+    .result-topbar {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 18px; padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-doc-type {
+      font-size: 12px; font-weight: 600;
+      background: var(--primary-light); color: var(--primary);
+      padding: 3px 10px; border-radius: 99px;
+    }
+    .result-title { font-size: 18px; font-weight: 700; flex: 1; }
+    .save-btn {
+      padding: 8px 14px;
+      background: var(--success); color: white;
+      border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; gap: 5px;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .save-btn:hover { background: #059669; }
+    .save-btn:disabled { background: var(--muted); cursor: default; }
+
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 18px; box-shadow: var(--shadow); margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 12px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: 12px; display: flex; align-items: center; gap: 5px;
+    }
+    .summary-text { font-size: 14px; line-height: 1.7; }
+    .key-points { display: flex; flex-direction: column; gap: 8px; }
+    .key-point {
+      border-radius: 8px; padding: 11px 13px;
+      border-left: 3px solid;
+    }
+    .key-point.info { background: #f8fafc; border-color: #94a3b8; }
+    .key-point.warning { background: var(--warning-light); border-color: var(--warning); }
+    .key-point.danger { background: var(--danger-light); border-color: var(--danger); }
+    .key-point-title { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+    .key-point.warning .key-point-title { color: #92400e; }
+    .key-point.danger .key-point-title { color: #991b1b; }
+    .key-point-content { font-size: 13px; line-height: 1.6; }
+    .red-flags { display: flex; flex-direction: column; gap: 7px; }
+    .red-flag {
+      display: flex; align-items: flex-start; gap: 8px;
+      background: var(--danger-light); border-radius: 8px;
+      padding: 9px 11px; font-size: 13px; line-height: 1.6;
+    }
+    .checklist { display: flex; flex-direction: column; gap: 7px; }
+    .checklist-item { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.5; }
+    .check-box {
+      width: 18px; height: 18px; flex-shrink: 0;
+      border: 2px solid var(--border); border-radius: 4px;
+      margin-top: 1px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .check-box.checked { background: var(--success); border-color: var(--success); }
+    .check-box.checked::after { content: '✓'; color: white; font-size: 11px; font-weight: 700; }
+    .recommendation {
+      background: var(--success-light); border: 1px solid #6ee7b7;
+      border-radius: 8px; padding: 13px 15px;
+      font-size: 13px; line-height: 1.7; color: #065f46;
+    }
+    .reset-btn {
+      width: 100%; margin-top: 16px; padding: 12px;
+      background: none; border: 1.5px solid var(--border);
+      border-radius: var(--radius); font-size: 14px; font-weight: 600;
+      color: var(--muted); cursor: pointer; font-family: inherit;
+      transition: all 0.15s;
+    }
+    .reset-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── VAULT PAGE ── */
+    .vault-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .vault-title { font-size: 20px; font-weight: 700; }
+    .vault-count {
+      font-size: 13px; color: var(--muted);
+      background: var(--bg); border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: 99px;
+    }
+    .vault-search {
+      width: 100%; padding: 11px 14px 11px 38px;
+      border: 1.5px solid var(--border); border-radius: var(--radius);
+      font-family: inherit; font-size: 14px;
+      background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 12px center;
+      margin-bottom: 12px;
+    }
+    .vault-search:focus { outline: none; border-color: var(--primary); }
+    .vault-filters {
+      display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .filter-chip {
+      padding: 5px 12px; border-radius: 99px;
+      border: 1.5px solid var(--border);
+      background: var(--card); font-size: 12px; font-weight: 500;
+      cursor: pointer; color: var(--text); transition: all 0.15s;
+    }
+    .filter-chip.active { background: var(--primary); border-color: var(--primary); color: white; }
+
+    .vault-empty {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+    }
+    .vault-empty-icon { font-size: 56px; margin-bottom: 16px; }
+    .vault-empty-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .vault-empty p { font-size: 14px; line-height: 1.6; }
+    .vault-empty-cta {
+      margin-top: 20px; display: inline-block;
+      padding: 10px 24px; background: var(--primary); color: white;
+      border-radius: 99px; font-size: 14px; font-weight: 600;
+      cursor: pointer; border: none; font-family: inherit;
+    }
+
+    .vault-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+    }
+    .vault-item {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      overflow: hidden; position: relative;
+    }
+    .vault-item:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.1); }
+    .vault-thumb {
+      width: 100%; aspect-ratio: 4/3;
+      object-fit: cover; display: block;
+      background: var(--bg);
+    }
+    .vault-thumb-placeholder {
+      width: 100%; aspect-ratio: 4/3;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; background: var(--primary-light);
+    }
+    .vault-item-body { padding: 10px; }
+    .vault-item-name {
+      font-size: 13px; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .vault-item-meta {
+      display: flex; align-items: center; gap: 5px;
+      flex-wrap: wrap;
+    }
+    .vault-item-type {
+      font-size: 10px; font-weight: 600;
+      background: var(--primary-light); color: var(--primary);
+      padding: 2px 7px; border-radius: 99px;
+    }
+    .vault-item-date { font-size: 11px; color: var(--muted); }
+    .vault-item-del {
+      position: absolute; top: 6px; right: 6px;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: rgba(0,0,0,0.5); border: none;
+      color: white; font-size: 12px; cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+    }
+    .vault-item:hover .vault-item-del { display: flex; }
+
+    /* DETAIL MODAL */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 300;
+      overflow-y: auto; padding: 20px 16px 40px;
+    }
+    .modal-overlay.visible { display: block; }
+    .modal {
+      background: var(--card); border-radius: 16px;
+      max-width: 640px; margin: 0 auto;
+      overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 16px 18px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--card); z-index: 1;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; flex: 1; }
+    .modal-close {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--bg); border: none;
+      cursor: pointer; font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-thumb-wrap {
+      background: #000; max-height: 240px; overflow: hidden;
+    }
+    .modal-thumb { width: 100%; object-fit: contain; max-height: 240px; display: block; }
+    .modal-body { padding: 18px; }
+
+    canvas { display: none; }
+
+    @media (max-width: 400px) {
+      .vault-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">📄</div>
+    <div class="logo-text">Docu<span>AI</span></div>
+  </div>
+</header>
+
+<!-- PAGE: ANALYZE -->
+<div id="page-analyze" class="page active">
+  <div class="content">
+    <div class="hero">
+      <h1>서류 사진 찍으면<br/><em>AI가 바로 분석</em>해드려요</h1>
+      <p>설명서, 약관, 보험서류, 계약서 등<br/>지류 서류를 카메라로 찍거나 파일로 올리세요</p>
+    </div>
+
+    <div id="analyze-form">
+      <p class="section-label">서류 유형</p>
+      <div class="doc-types">
+        <button class="doc-type-btn active" data-type="product">📦 제품설명서</button>
+      </div>
+
+      <p class="section-label">이미지 입력</p>
+      <div class="input-methods">
+        <button class="method-btn active" id="method-camera" onclick="switchMethod('camera')">
+          <div class="method-icon">📷</div>
+          <div class="method-label">카메라</div>
+          <div class="method-sub">지금 바로 촬영</div>
+        </button>
+        <button class="method-btn" id="method-upload" onclick="switchMethod('upload')">
+          <div class="method-icon">📁</div>
+          <div class="method-label">파일 업로드</div>
+          <div class="method-sub">JPG · PNG · PDF</div>
+        </button>
+      </div>
+
+      <!-- Camera -->
+      <div id="camera-section">
+        <div id="camera-error"></div>
+        <div class="camera-wrapper" id="camera-wrapper">
+          <video id="camera-video" autoplay playsinline muted></video>
+          <div class="camera-overlay">
+            <div class="scan-frame" style="position:relative">
+              <div class="scan-corner tl"></div>
+              <div class="scan-corner tr"></div>
+              <div class="scan-corner bl"></div>
+              <div class="scan-corner br"></div>
+            </div>
+          </div>
+          <div class="camera-hint">서류가 프레임 안에 오도록 맞춰주세요</div>
+        </div>
+        <div class="camera-controls" id="camera-controls">
+          <button class="flip-btn" id="flip-btn" title="카메라 전환" onclick="flipCamera()">🔄</button>
+          <button class="shutter-btn" id="shutter-btn" onclick="capturePhoto()">📸</button>
+          <div style="width:44px"></div>
+        </div>
+      </div>
+
+      <!-- Upload -->
+      <div id="upload-section">
+        <div class="upload-area" id="drop-zone">
+          <input type="file" id="file-input" accept="image/*,.pdf" />
+          <div class="upload-icon">☁️</div>
+          <div class="upload-title">클릭하거나 파일을 드래그하세요</div>
+          <div class="upload-sub">JPG · PNG · WEBP · PDF (최대 10MB)</div>
+        </div>
+        <div class="file-chip" id="file-chip">
+          <span id="chip-icon">📄</span>
+          <span class="file-chip-name" id="chip-name"></span>
+          <span class="file-chip-size" id="chip-size"></span>
+          <button class="file-chip-remove" onclick="clearFile()">✕</button>
+        </div>
+      </div>
+
+      <!-- Pages strip -->
+      <div id="pages-section">
+        <div class="pages-label">
+          <span id="pages-label-text">촬영된 페이지</span>
+          <span id="pages-count-badge"></span>
+        </div>
+        <div class="pages-strip" id="pages-strip">
+          <!-- thumbnails injected here -->
+          <button class="page-add-btn" id="add-page-btn" onclick="addMorePage()">
+            <span class="page-add-icon">📷</span>
+            <span>페이지 추가</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Doc name -->
+      <div class="doc-name-wrap" id="doc-name-wrap">
+        <input class="doc-name-input" id="doc-name-input"
+          type="text" placeholder="서류 이름 (예: 에어컨 설명서, 아이폰 보증서…)" maxlength="40" />
+      </div>
+
+      <div class="error-box" id="error-box"></div>
+    </div>
+
+    <div class="analyze-btn-wrap">
+      <button class="analyze-btn" id="analyze-btn" disabled>
+        <span>🔍</span> <span id="btn-text">서류를 촬영하거나 업로드해주세요</span>
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loading-text">서류를 읽고 있습니다...</div>
+      <div class="loading-sub" id="loading-sub">잠시만 기다려주세요</div>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+      <div class="result-topbar">
+        <span class="result-doc-type" id="result-doc-type"></span>
+        <span class="result-title" id="result-doc-name">분석 결과</span>
+        <button class="save-btn" id="save-btn">💾 저장</button>
+      </div>
+
+      <!-- 액션 카드 -->
+      <div class="actions-card" id="actions-card" style="display:none">
+        <div class="actions-title">⚡ 지금 이렇게 하세요</div>
+        <div id="actions-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📝 요약</div>
+        <p class="summary-text" id="summary-text"></p>
+      </div>
+      <div id="tables-container"></div>
+      <div id="steps-container"></div>
+
+      <div class="card">
+        <div class="card-title">🔑 핵심 항목</div>
+        <div class="key-points" id="key-points"></div>
+      </div>
+      <div class="card" id="redflags-card">
+        <div class="card-title">🚨 주의 조항</div>
+        <div class="red-flags" id="red-flags"></div>
+      </div>
+      <div class="card" id="checklist-card">
+        <div class="card-title">✅ 확인 체크리스트</div>
+        <div class="checklist" id="checklist"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">💡 종합 의견</div>
+        <div class="recommendation" id="recommendation-text"></div>
+      </div>
+
+      <!-- 인라인 채팅 -->
+      <div class="chat-wrap" id="result-chat">
+        <div class="chat-header">
+          <div class="chat-header-title">💬 이 서류에 대해 질문하기</div>
+          <div class="chat-header-sub">궁금한 게 있으면 바로 물어보세요</div>
+          <div class="chat-suggestions" id="result-suggestions"></div>
+        </div>
+        <div class="chat-messages" id="result-chat-messages">
+          <div class="chat-empty">아래에 질문을 입력하거나 예시를 눌러보세요 👆</div>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="result-chat-input" type="text" placeholder="예: 유리용기 써도 돼?" maxlength="200" />
+          <button class="chat-send" id="result-chat-send" onclick="sendResultChat()">전송</button>
+        </div>
+      </div>
+
+      <button class="reset-btn" id="reset-btn">↩ 다른 서류 분석하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: VAULT -->
+<div id="page-vault" class="page">
+  <div class="content">
+    <div class="vault-header">
+      <span class="vault-title">📂 내 서류함</span>
+      <span class="vault-count" id="vault-count">0개</span>
+    </div>
+    <input class="vault-search" id="vault-search" type="text" placeholder="서류 검색..." />
+    <div class="vault-filters" id="vault-filters">
+      <button class="filter-chip active" data-filter="all">전체</button>
+      <button class="filter-chip" data-filter="product">제품설명서</button>
+      <button class="filter-chip" data-filter="terms">약관</button>
+      <button class="filter-chip" data-filter="insurance">보험</button>
+      <button class="filter-chip" data-filter="contract">계약서</button>
+      <button class="filter-chip" data-filter="other">기타</button>
+    </div>
+    <div class="vault-empty" id="vault-empty">
+      <div class="vault-empty-icon">🗂️</div>
+      <div class="vault-empty-title">아직 저장된 서류가 없어요</div>
+      <p>서류를 촬영하고 분석한 뒤<br/>저장하면 여기서 언제든 다시 볼 수 있어요.</p>
+      <button class="vault-empty-cta" onclick="switchPage('analyze')">📷 첫 서류 분석하기</button>
+    </div>
+    <div class="vault-grid" id="vault-grid"></div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <span class="result-doc-type" id="modal-doc-type"></span>
+      <span class="modal-title" id="modal-title"></span>
+      <button class="modal-close" onclick="closeModalBtn()">✕</button>
+    </div>
+    <div class="modal-thumb-wrap" id="modal-thumb-wrap"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="chat-wrap" style="border-radius:0; box-shadow:none; border-top:1px solid var(--border);">
+      <div class="chat-header">
+        <div class="chat-header-title">💬 이 서류에 대해 질문하기</div>
+        <div class="chat-header-sub">궁금한 게 있으면 바로 물어보세요</div>
+        <div class="chat-suggestions" id="modal-suggestions"></div>
+      </div>
+      <div class="chat-messages" id="modal-chat-messages">
+        <div class="chat-empty">아래에 질문을 입력하거나 예시를 눌러보세요 👆</div>
+      </div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="modal-chat-input" type="text" placeholder="예: 유리용기 써도 돼?" maxlength="200" />
+        <button class="chat-send" id="modal-chat-send">전송</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<nav class="bottom-nav">
+  <button class="nav-tab active" id="nav-analyze" onclick="switchPage('analyze')">
+    <span class="nav-icon">🔍</span>분석하기
+  </button>
+  <button class="nav-tab" id="nav-vault" onclick="switchPage('vault')">
+    <span class="nav-icon">📂</span>서류함
+  </button>
+</nav>
+
+<canvas id="capture-canvas"></canvas>
+
+<script>
+// ── State ──────────────────────────────────────────────
+let capturedPages = [];        // [{dataUrl, thumbUrl}] — camera mode
+let uploadFiles = [];          // [{file, thumbUrl}] — upload mode
+let currentMode = 'camera';
+let selectedDocType = 'product';
+let stream = null;
+let facingMode = 'environment';
+let currentResult = null;
+let currentThumb = null;
+
+const MAX_SIZE = 10 * 1024 * 1024;
+const MAX_PAGES = 10;
+
+// ── Page Navigation ────────────────────────────────────
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.getElementById('nav-' + page).classList.add('active');
+  if (page === 'vault') renderVault();
+  if (page === 'analyze' && currentMode === 'camera' && capturedPages.length === 0) startCamera();
+}
+
+// ── Doc Type ───────────────────────────────────────────
+document.querySelectorAll('.doc-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    document.querySelectorAll('.doc-type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedDocType = btn.dataset.type;
+  });
+});
+
+// ── Input Method Switch ────────────────────────────────
+function switchMethod(method) {
+  currentMode = method;
+  document.getElementById('method-camera').classList.toggle('active', method === 'camera');
+  document.getElementById('method-upload').classList.toggle('active', method === 'upload');
+  document.getElementById('camera-section').style.display = method === 'camera' ? 'block' : 'none';
+  document.getElementById('upload-section').style.display = method === 'upload' ? 'block' : 'none';
+  capturedPages = []; uploadFiles = [];
+  document.getElementById('pages-section').style.display = 'none';
+  document.getElementById('doc-name-wrap').classList.remove('visible');
+  if (method === 'camera') { startCamera(); }
+  else { stopCamera(); }
+  updateAnalyzeBtn();
+}
+
+// ── Camera ─────────────────────────────────────────────
+async function startCamera() {
+  const errEl = document.getElementById('camera-error');
+  errEl.style.display = 'none';
+  document.getElementById('camera-wrapper').style.display = 'block';
+  document.getElementById('camera-controls').style.display = 'flex';
+  if (stream) stopCamera();
+
+  // iOS Safari에 맞게 단계별 폴백
+  const attempts = [
+    { facingMode: { ideal: facingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+    { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    { facingMode: { ideal: facingMode } },
+    { facingMode: facingMode },
+    true,
+  ];
+
+  for (const videoConstraint of attempts) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint });
+      document.getElementById('camera-video').srcObject = stream;
+      return;
+    } catch (e) {
+      // 다음 옵션 시도
+    }
+  }
+
+  // 모두 실패
+  errEl.textContent = '📷 카메라를 열 수 없습니다. 브라우저 설정에서 카메라 권한을 허용해주세요.';
+  errEl.style.display = 'block';
+  document.getElementById('camera-wrapper').style.display = 'none';
+  document.getElementById('camera-controls').style.display = 'none';
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('camera-video').srcObject = null;
+}
+
+async function flipCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  await startCamera();
+}
+
+function capturePhoto() {
+  const video = document.getElementById('camera-video');
+  if (!video.srcObject) return;
+  if (capturedPages.length >= MAX_PAGES) { showError(`최대 ${MAX_PAGES}장까지 촬영 가능합니다.`); return; }
+  const canvas = document.getElementById('capture-canvas');
+  const vw = video.videoWidth, vh = video.videoHeight;
+
+  // 핸드폰을 세로로 들면 실제 비디오는 가로(landscape)로 들어오는 경우가 많음
+  // → 세로(portrait) 서류면 canvas를 회전해서 저장
+  const isLandscapeVideo = vw > vh;
+  if (isLandscapeVideo) {
+    // 90도 회전해서 세로로 저장
+    canvas.width = vh; canvas.height = vw;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.translate(vh / 2, vw / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(video, -vw / 2, -vh / 2);
+    ctx.restore();
+  } else {
+    canvas.width = vw; canvas.height = vh;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+  }
+
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+  const thumbUrl = canvas.toDataURL('image/jpeg', 0.4);
+  capturedPages.push({ dataUrl, thumbUrl });
+  renderPagesStrip();
+  updateAnalyzeBtn();
+  // Flash effect
+  const wrapper = document.getElementById('camera-wrapper');
+  wrapper.style.opacity = '0.2';
+  setTimeout(() => wrapper.style.opacity = '1', 120);
+}
+
+// "페이지 추가" button — just keep camera open
+function addMorePage() {
+  if (capturedPages.length >= MAX_PAGES) { showError(`최대 ${MAX_PAGES}장까지 촬영 가능합니다.`); return; }
+  // camera is already running, just scroll up
+  document.getElementById('camera-wrapper').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderPagesStrip() {
+  const strip = document.getElementById('pages-strip');
+  // Remove old thumbs (keep add-btn)
+  strip.querySelectorAll('.page-thumb-wrap').forEach(el => el.remove());
+  const addBtn = document.getElementById('add-page-btn');
+
+  capturedPages.forEach((pg, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'page-thumb-wrap';
+    wrap.innerHTML = `
+      <img class="page-thumb" src="${pg.thumbUrl}" />
+      <span class="page-num">${i + 1}p</span>
+      <button class="page-del" onclick="deletePage(${i})">✕</button>
+    `;
+    strip.insertBefore(wrap, addBtn);
+  });
+
+  const count = capturedPages.length;
+  document.getElementById('pages-section').style.display = count > 0 ? 'block' : 'none';
+  document.getElementById('pages-label-text').textContent = '촬영된 페이지';
+  document.getElementById('pages-count-badge').textContent = `${count}장`;
+  document.getElementById('doc-name-wrap').classList.toggle('visible', count > 0);
+
+  // Hide add btn if max reached
+  addBtn.style.display = count >= MAX_PAGES ? 'none' : 'flex';
+}
+
+function deletePage(i) {
+  capturedPages.splice(i, 1);
+  renderPagesStrip();
+  updateAnalyzeBtn();
+  if (capturedPages.length === 0) startCamera();
+}
+
+// ── Upload (multi-file) ────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+fileInput.setAttribute('multiple', '');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  handleFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => handleFiles(Array.from(fileInput.files)));
+
+function handleFiles(files) {
+  hideError();
+  const allowed = ['image/jpeg','image/png','image/webp','image/gif','application/pdf'];
+  for (const file of files) {
+    if (uploadFiles.length >= MAX_PAGES) { showError(`최대 ${MAX_PAGES}개까지 추가 가능합니다.`); break; }
+    if (!allowed.includes(file.type)) { showError(`${file.name}: 지원하지 않는 형식입니다.`); continue; }
+    if (file.size > MAX_SIZE) { showError(`${file.name}: 10MB를 초과합니다.`); continue; }
+    uploadFiles.push({ file, thumbUrl: null });
+    const idx = uploadFiles.length - 1;
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.getElementById('capture-canvas');
+          const scale = Math.min(200/img.width, 200/img.height);
+          canvas.width = img.width*scale; canvas.height = img.height*scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          uploadFiles[idx].thumbUrl = canvas.toDataURL('image/jpeg', 0.4);
+          renderUploadStrip();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+  renderUploadStrip();
+  updateAnalyzeBtn();
+}
+
+function renderUploadStrip() {
+  const strip = document.getElementById('pages-strip');
+  strip.querySelectorAll('.page-thumb-wrap').forEach(el => el.remove());
+  const addBtn = document.getElementById('add-page-btn');
+
+  uploadFiles.forEach((uf, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'page-thumb-wrap';
+    if (uf.thumbUrl) {
+      wrap.innerHTML = `<img class="page-thumb" src="${uf.thumbUrl}" /><span class="page-num">${i+1}p</span><button class="page-del" onclick="deleteUploadFile(${i})">✕</button>`;
+    } else {
+      wrap.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--primary-light)">📕</div><span class="page-num">${i+1}p</span><button class="page-del" onclick="deleteUploadFile(${i})">✕</button>`;
+    }
+    strip.insertBefore(wrap, addBtn);
+  });
+
+  const count = uploadFiles.length;
+  document.getElementById('pages-section').style.display = count > 0 ? 'block' : 'none';
+  document.getElementById('pages-label-text').textContent = '추가된 파일';
+  document.getElementById('pages-count-badge').textContent = `${count}개`;
+  document.getElementById('doc-name-wrap').classList.toggle('visible', count > 0);
+  addBtn.style.display = count >= MAX_PAGES ? 'none' : 'flex';
+
+  // Update add btn label for upload mode
+  addBtn.querySelector('span:last-child').textContent = '파일 추가';
+  addBtn.onclick = () => fileInput.click();
+}
+
+function deleteUploadFile(i) {
+  uploadFiles.splice(i, 1);
+  renderUploadStrip();
+  updateAnalyzeBtn();
+}
+
+function clearFile() { uploadFiles = []; renderUploadStrip(); updateAnalyzeBtn(); }
+
+// ── Analyze ────────────────────────────────────────────
+function updateAnalyzeBtn() {
+  const hasInput = (currentMode === 'camera' && capturedPages.length > 0) ||
+                   (currentMode === 'upload' && uploadFiles.length > 0);
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = !hasInput;
+  const count = currentMode === 'camera' ? capturedPages.length : uploadFiles.length;
+  document.getElementById('btn-text').textContent = hasInput
+    ? `🔍 ${count}장 분석 시작`
+    : (currentMode === 'camera' ? '서류를 촬영해주세요' : '파일을 업로드해주세요');
+}
+
+document.getElementById('analyze-btn').addEventListener('click', async () => {
+  hideError();
+  let pages = []; // [{fileData, mediaType}]
+
+  if (currentMode === 'camera') {
+    if (capturedPages.length === 0) return;
+    pages = capturedPages.map(pg => ({
+      fileData: pg.dataUrl.split(',')[1],
+      mediaType: 'image/jpeg'
+    }));
+    currentThumb = capturedPages[0].thumbUrl;
+  } else {
+    if (uploadFiles.length === 0) return;
+    for (const uf of uploadFiles) {
+      const fileData = await fileToBase64(uf.file);
+      pages.push({ fileData, mediaType: uf.file.type });
+    }
+    currentThumb = uploadFiles[0].thumbUrl || null;
+  }
+
+  stopCamera();
+  setLoading(true);
+  startLoadingMessages(pages.length);
+  try {
+    const res = await fetch('/.netlify/functions/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pages, docType: selectedDocType }),
+    });
+    let data;
+    const text = await res.text();
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (res.status === 404) throw new Error('분석 서버를 찾을 수 없습니다. Netlify Functions가 배포됐는지 확인해주세요.');
+      if (res.status === 500) throw new Error('서버 오류입니다. Netlify에서 API 키(ANTHROPIC_API_KEY)가 설정됐는지 확인해주세요.');
+      throw new Error(`서버 응답 오류 (${res.status}): ${text.slice(0, 100)}`);
+    }
+    if (!res.ok) throw new Error(data.error || '분석 실패');
+    stopLoadingMessages();
+    currentResult = data;
+    renderResults(data);
+  } catch (err) {
+    stopLoadingMessages();
+    setLoading(false);
+    showError(err.message);
+  }
+});
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function setLoading(on) {
+  document.getElementById('loading').classList.toggle('visible', on);
+  document.getElementById('analyze-form').style.display = on ? 'none' : '';
+  document.querySelector('.analyze-btn-wrap').style.display = on ? 'none' : '';
+  document.getElementById('results').classList.remove('visible');
+}
+
+function renderResults(data) {
+  setLoading(false);
+  const count = currentMode === 'camera' ? capturedPages.length : uploadFiles.length;
+  const defaultName = count > 1 ? `서류 (${count}장)` : '분석된 서류';
+  const docName = document.getElementById('doc-name-input').value.trim() || defaultName;
+
+  document.getElementById('result-doc-type').textContent = data.docType || '서류';
+  document.getElementById('result-doc-name').textContent = docName;
+  document.getElementById('summary-text').textContent = data.summary || '';
+
+  // 표 렌더링
+  const tablesEl = document.getElementById('tables-container');
+  tablesEl.innerHTML = '';
+  (data.tables || []).forEach(tbl => {
+    if (!tbl.rows?.length) return;
+    const card = document.createElement('div');
+    card.className = 'card';
+    let html = `<div class="card-title">📊 ${esc(tbl.title)}</div><div style="overflow-x:auto"><table class="doc-table"><thead><tr>`;
+    tbl.headers.forEach(h => { html += `<th>${esc(h)}</th>`; });
+    html += '</tr></thead><tbody>';
+    tbl.rows.forEach(row => {
+      html += '<tr>';
+      row.forEach((cell, ci) => {
+        const isLast = ci === row.length - 1;
+        const v = String(cell);
+        let cls = '';
+        if (isLast) {
+          if (/^(O|✓|가능|됨|ok)$/i.test(v)) cls = 'cell-ok';
+          else if (/^(X|✗|불가|안됨|no)$/i.test(v)) cls = 'cell-no';
+          else if (/^(△|조건부|maybe)$/i.test(v)) cls = 'cell-maybe';
+        }
+        const display = cls === 'cell-ok' ? '✅' : cls === 'cell-no' ? '❌' : cls === 'cell-maybe' ? '⚠️' : esc(v);
+        html += `<td class="${cls}">${display}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    card.innerHTML = html;
+    tablesEl.appendChild(card);
+  });
+
+  // 절차 렌더링
+  const stepsEl = document.getElementById('steps-container');
+  stepsEl.innerHTML = '';
+  (data.steps || []).forEach(proc => {
+    if (!proc.items?.length) return;
+    const card = document.createElement('div');
+    card.className = 'card';
+    let html = `<div class="card-title">📋 ${esc(proc.title)}</div><div class="steps-list">`;
+    proc.items.forEach((item, i) => {
+      html += `<div class="step-item"><div class="step-num">${i+1}</div><div class="step-text">${esc(item)}</div></div>`;
+    });
+    html += '</div>';
+    card.innerHTML = html;
+    stepsEl.appendChild(card);
+  });
+
+  const kpEl = document.getElementById('key-points');
+  kpEl.innerHTML = '';
+  (data.keyPoints || []).forEach(kp => {
+    const d = document.createElement('div');
+    d.className = `key-point ${kp.level || 'info'}`;
+    d.innerHTML = `<div class="key-point-title">${esc(kp.title)}</div><div class="key-point-content">${esc(kp.content)}</div>`;
+    kpEl.appendChild(d);
+  });
+
+  const rfEl = document.getElementById('red-flags');
+  rfEl.innerHTML = '';
+  const flags = data.redFlags || [];
+  document.getElementById('redflags-card').style.display = flags.length ? '' : 'none';
+  flags.forEach(f => {
+    const d = document.createElement('div');
+    d.className = 'red-flag';
+    d.innerHTML = `<span>⚠️</span><span>${esc(f)}</span>`;
+    rfEl.appendChild(d);
+  });
+
+  const clEl = document.getElementById('checklist');
+  clEl.innerHTML = '';
+  (data.checklist || []).forEach(item => {
+    const d = document.createElement('div');
+    d.className = 'checklist-item';
+    const box = document.createElement('div');
+    box.className = 'check-box';
+    box.addEventListener('click', () => box.classList.toggle('checked'));
+    d.appendChild(box);
+    const lbl = document.createElement('span');
+    lbl.textContent = item.item || item;
+    d.appendChild(lbl);
+    clEl.appendChild(d);
+  });
+
+  document.getElementById('recommendation-text').textContent = data.recommendation || '';
+
+  // 액션 카드
+  const actions = data.actions || [];
+  const actionsCard = document.getElementById('actions-card');
+  const actionsList = document.getElementById('actions-list');
+  actionsList.innerHTML = '';
+  if (actions.length) {
+    actions.forEach(a => {
+      const d = document.createElement('div');
+      d.className = 'action-item';
+      d.innerHTML = `<span class="action-when">${esc(a.when)}</span><span class="action-what">${esc(a.what)}</span>`;
+      actionsList.appendChild(d);
+    });
+    actionsCard.style.display = 'block';
+  } else {
+    actionsCard.style.display = 'none';
+  }
+
+  // 채팅 초기화
+  const msgBox = document.getElementById('result-chat-messages');
+  msgBox.innerHTML = '<div class="chat-empty">아래에 질문을 입력하거나 예시를 눌러보세요 👆</div>';
+  document.getElementById('result-chat-input').value = '';
+  resultChatDocData = data;
+  resultChatDocName = docName;
+
+  // 서류 유형별 예시 질문
+  const suggestions = getSuggestions(selectedDocType, data.docType);
+  const sugBox = document.getElementById('result-suggestions');
+  sugBox.innerHTML = '';
+  suggestions.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'chat-suggestion';
+    btn.textContent = s;
+    btn.onclick = () => { document.getElementById('result-chat-input').value = s; sendResultChat(); };
+    sugBox.appendChild(btn);
+  });
+
+  document.querySelector('.analyze-btn-wrap').style.display = 'none';
+  document.getElementById('results').classList.add('visible');
+
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.disabled = false;
+  saveBtn.textContent = '💾 저장';
+  saveBtn.onclick = () => {
+    saveDoc(data, docName);
+    showToast('✅ 서류함에 저장됐어요!');
+  };
+}
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  currentResult = null; capturedPages = []; uploadFiles = []; currentThumb = null;
+  fileInput.value = '';
+  document.getElementById('doc-name-input').value = '';
+  document.getElementById('pages-section').style.display = 'none';
+  document.getElementById('doc-name-wrap').classList.remove('visible');
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('analyze-form').style.display = '';
+  document.querySelector('.analyze-btn-wrap').style.display = '';
+  hideError();
+  if (currentMode === 'camera') {
+    document.getElementById('camera-wrapper').style.display = 'block';
+    document.getElementById('camera-controls').style.display = 'flex';
+    startCamera();
+  }
+  updateAnalyzeBtn();
+});
+
+// ── Chat ───────────────────────────────────────────────
+let resultChatDocData = null;
+let resultChatDocName = '';
+
+document.getElementById('result-chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendResultChat();
+});
+
+async function sendResultChat() {
+  const input = document.getElementById('result-chat-input');
+  const q = input.value.trim();
+  if (!q || !resultChatDocData) return;
+  input.value = '';
+  const msgBox = document.getElementById('result-chat-messages');
+  msgBox.querySelector('.chat-empty')?.remove();
+  appendChatMsg('result-chat-messages', q, 'user');
+  const typing = appendChatMsg('result-chat-messages', '답변 생성 중...', 'ai typing');
+  document.getElementById('result-chat-send').disabled = true;
+
+  try {
+    const res = await fetch('/.netlify/functions/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ docData: resultChatDocData, docName: resultChatDocName, question: q }),
+    });
+    const data = await res.json();
+    typing.remove();
+    appendChatMsg('result-chat-messages', data.answer || data.error || '오류가 발생했습니다.', 'ai');
+  } catch {
+    typing.remove();
+    appendChatMsg('result-chat-messages', '네트워크 오류가 발생했습니다.', 'ai');
+  }
+  document.getElementById('result-chat-send').disabled = false;
+}
+
+async function sendModalChat(docData, docName, chatImages) {
+  const input = document.getElementById('modal-chat-input');
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  document.getElementById('modal-chat-messages').querySelector('.chat-empty')?.remove();
+  appendChatMsg('modal-chat-messages', q, 'user');
+  const typing = appendChatMsg('modal-chat-messages', '답변 생성 중...', 'ai typing');
+  document.getElementById('modal-chat-send').disabled = true;
+  try {
+    const res = await fetch('/.netlify/functions/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ docData, docName, question: q }),
+    });
+    const data = await res.json();
+    typing.remove();
+    appendChatMsg('modal-chat-messages', data.answer || data.error || '오류가 발생했습니다.', 'ai');
+  } catch {
+    typing.remove();
+    appendChatMsg('modal-chat-messages', '네트워크 오류가 발생했습니다.', 'ai');
+  }
+  document.getElementById('modal-chat-send').disabled = false;
+}
+
+function getSuggestions(typeKey, docType) {
+  const t = (typeKey || '') + (docType || '');
+  if (t.includes('보험') || t.includes('insurance')) return ['보험금 청구 어떻게 해?', '보장 안 되는 게 뭐야?', '갱신 시기가 언제야?'];
+  if (t.includes('계약') || t.includes('contract')) return ['중도 해지하면 어떻게 돼?', '위약금 있어?', '계약 기간이 언제까지야?'];
+  if (t.includes('약관') || t.includes('terms')) return ['탈퇴하면 데이터 어떻게 돼?', '자동결제 해지 어떻게 해?', '환불 가능해?'];
+  return ['보증기간이 언제까지야?', 'A/S 신청 어떻게 해?', '사용하면 안 되는 게 뭐야?'];
+}
+
+function appendChatMsg(containerId, text, type) {
+  const container = document.getElementById(containerId);
+  const d = document.createElement('div');
+  d.className = `chat-msg ${type}`;
+  d.textContent = text;
+  container.appendChild(d);
+  container.scrollTop = container.scrollHeight;
+  return d;
+}
+
+// ── Save / Vault ───────────────────────────────────────
+function saveDoc(data, name) {
+  // 모든 페이지 이미지 저장 (채팅용)
+  const chatImages = capturedPages.length > 0
+    ? capturedPages.map(p => p.dataUrl.split(',')[1])
+    : null;
+  const doc = {
+    id: Date.now().toString(),
+    name,
+    docType: data.docType || '서류',
+    typeKey: selectedDocType,
+    date: new Date().toLocaleDateString('ko-KR'),
+    thumb: currentThumb,
+    chatImages,
+    data,
+  };
+  const vault = getVault();
+  vault.unshift(doc);
+  setVault(vault);
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = '✅ 저장됨';
+  updateVaultBadge();
+}
+
+function getVault() { try { return JSON.parse(localStorage.getItem('docuai_vault') || '[]'); } catch { return []; } }
+function setVault(v) { localStorage.setItem('docuai_vault', JSON.stringify(v)); }
+function updateVaultBadge() {
+  const count = getVault().length;
+  document.getElementById('vault-count').textContent = count + '개';
+}
+
+// ── Vault Render ───────────────────────────────────────
+let activeFilter = 'all';
+let searchQuery = '';
+
+document.getElementById('vault-search').addEventListener('input', e => {
+  searchQuery = e.target.value.toLowerCase();
+  renderVault();
+});
+
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    activeFilter = chip.dataset.filter;
+    renderVault();
+  });
+});
+
+function renderVault() {
+  const vault = getVault();
+  const filtered = vault.filter(doc => {
+    const matchFilter = activeFilter === 'all' || doc.typeKey === activeFilter ||
+      (activeFilter === 'other' && !['product','terms','insurance','contract'].includes(doc.typeKey));
+    const matchSearch = !searchQuery || doc.name.toLowerCase().includes(searchQuery) ||
+      doc.docType.toLowerCase().includes(searchQuery);
+    return matchFilter && matchSearch;
+  });
+
+  document.getElementById('vault-count').textContent = vault.length + '개';
+  document.getElementById('vault-empty').style.display = filtered.length ? 'none' : 'block';
+  const grid = document.getElementById('vault-grid');
+  grid.innerHTML = '';
+
+  filtered.forEach(doc => {
+    const item = document.createElement('div');
+    item.className = 'vault-item';
+    item.innerHTML = `
+      ${doc.thumb
+        ? `<img class="vault-thumb" src="${doc.thumb}" alt="${esc(doc.name)}" />`
+        : `<div class="vault-thumb-placeholder">${docEmoji(doc.typeKey)}</div>`}
+      <div class="vault-item-body">
+        <div class="vault-item-name">${esc(doc.name)}</div>
+        <div class="vault-item-meta">
+          <span class="vault-item-type">${esc(doc.docType)}</span>
+          <span class="vault-item-date">${doc.date}</span>
+        </div>
+      </div>
+      <button class="vault-item-del" onclick="deleteDoc(event,'${doc.id}')">✕</button>
+    `;
+    item.addEventListener('click', () => openModal(doc));
+    grid.appendChild(item);
+  });
+}
+
+function deleteDoc(e, id) {
+  e.stopPropagation();
+  if (!confirm('이 서류를 삭제할까요?')) return;
+  const vault = getVault().filter(d => d.id !== id);
+  setVault(vault);
+  renderVault();
+}
+
+function docEmoji(type) {
+  return { product: '📦', terms: '📋', insurance: '🏥', contract: '✍️' }[type] || '📄';
+}
+
+// ── Modal ──────────────────────────────────────────────
+function openModal(doc) {
+  document.getElementById('modal-doc-type').textContent = doc.docType;
+  document.getElementById('modal-title').textContent = doc.name;
+
+  const thumbWrap = document.getElementById('modal-thumb-wrap');
+  if (doc.thumb) {
+    thumbWrap.innerHTML = `<img class="modal-thumb" src="${doc.thumb}" alt="${esc(doc.name)}" />`;
+    thumbWrap.style.display = '';
+  } else {
+    thumbWrap.style.display = 'none';
+  }
+
+  const body = document.getElementById('modal-body');
+  body.innerHTML = buildResultHtml(doc.data, doc.name);
+
+  // 채팅 초기화
+  document.getElementById('modal-chat-messages').innerHTML = '<div class="chat-empty">아래에 질문을 입력하거나 예시를 눌러보세요 👆</div>';
+  document.getElementById('modal-chat-input').value = '';
+  const sendBtn = document.getElementById('modal-chat-send');
+  sendBtn.onclick = () => sendModalChat(doc.data, doc.name, doc.chatImages);
+  document.getElementById('modal-chat-input').onkeydown = e => { if (e.key === 'Enter') sendModalChat(doc.data, doc.name, doc.chatImages); };
+  const modalSugs = getSuggestions(doc.typeKey, doc.docType);
+  const modalSugBox = document.getElementById('modal-suggestions');
+  modalSugBox.innerHTML = '';
+  modalSugs.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'chat-suggestion';
+    btn.textContent = s;
+    btn.onclick = () => { document.getElementById('modal-chat-input').value = s; sendModalChat(doc.data, doc.name); };
+    modalSugBox.appendChild(btn);
+  });
+
+  document.getElementById('modal-overlay').classList.add('visible');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModalBtn();
+}
+function closeModalBtn() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+  document.body.style.overflow = '';
+}
+
+function buildResultHtml(data, name) {
+  let html = '';
+  html += `<div class="card"><div class="card-title">📝 요약</div><p class="summary-text">${esc(data.summary||'')}</p></div>`;
+  (data.tables||[]).forEach(tbl => {
+    if (!tbl.rows?.length) return;
+    html += `<div class="card"><div class="card-title">📊 ${esc(tbl.title)}</div><div style="overflow-x:auto"><table class="doc-table"><thead><tr>`;
+    tbl.headers.forEach(h => { html += `<th>${esc(h)}</th>`; });
+    html += '</tr></thead><tbody>';
+    tbl.rows.forEach(row => {
+      html += '<tr>';
+      row.forEach((cell, ci) => {
+        const isLast = ci === row.length - 1;
+        const v = String(cell);
+        let cls = '';
+        if (isLast) {
+          if (/^(O|✓|가능|됨|ok)$/i.test(v)) cls = 'cell-ok';
+          else if (/^(X|✗|불가|안됨|no)$/i.test(v)) cls = 'cell-no';
+          else if (/^(△|조건부|maybe)$/i.test(v)) cls = 'cell-maybe';
+        }
+        const display = cls === 'cell-ok' ? '✅' : cls === 'cell-no' ? '❌' : cls === 'cell-maybe' ? '⚠️' : esc(v);
+        html += `<td class="${cls}">${display}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+  });
+  (data.steps||[]).forEach(proc => {
+    if (!proc.items?.length) return;
+    html += `<div class="card"><div class="card-title">📋 ${esc(proc.title)}</div><div class="steps-list">`;
+    proc.items.forEach((item, i) => { html += `<div class="step-item"><div class="step-num">${i+1}</div><div class="step-text">${esc(item)}</div></div>`; });
+    html += '</div></div>';
+  });
+  if (data.keyPoints?.length) {
+    html += `<div class="card"><div class="card-title">🔑 핵심 항목</div><div class="key-points">`;
+    data.keyPoints.forEach(kp => {
+      html += `<div class="key-point ${kp.level||'info'}"><div class="key-point-title">${esc(kp.title)}</div><div class="key-point-content">${esc(kp.content)}</div></div>`;
+    });
+    html += `</div></div>`;
+  }
+  if (data.redFlags?.length) {
+    html += `<div class="card"><div class="card-title">🚨 주의 조항</div><div class="red-flags">`;
+    data.redFlags.forEach(f => { html += `<div class="red-flag"><span>⚠️</span><span>${esc(f)}</span></div>`; });
+    html += `</div></div>`;
+  }
+  if (data.checklist?.length) {
+    html += `<div class="card"><div class="card-title">✅ 체크리스트</div><div class="checklist">`;
+    data.checklist.forEach(item => {
+      html += `<div class="checklist-item"><div class="check-box" onclick="this.classList.toggle('checked')"></div><span>${esc(item.item||item)}</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+  if (data.recommendation) {
+    html += `<div class="card"><div class="card-title">💡 종합 의견</div><div class="recommendation">${esc(data.recommendation)}</div></div>`;
+  }
+  return html;
+}
+
+// ── Helpers ────────────────────────────────────────────
+function showError(msg) { const b = document.getElementById('error-box'); b.textContent = '❌ ' + msg; b.classList.add('visible'); }
+function hideError() { document.getElementById('error-box').classList.remove('visible'); }
+function formatSize(b) { if (b<1024) return b+'B'; if (b<1048576) return (b/1024).toFixed(1)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Toast ───────────────────────────────────────────────
+function showToast(msg, duration = 2200) {
+  let toast = document.getElementById('toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toast'; toast.className = 'toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// ── Loading messages ────────────────────────────────────
+let loadingInterval = null;
+function startLoadingMessages(pageCount) {
+  const msgs = [
+    ['서류를 읽고 있습니다...', pageCount > 1 ? `${pageCount}장 모두 분석 중`  : '텍스트를 인식하는 중'],
+    ['핵심 내용을 파악하고 있습니다...', '중요 조항 확인 중'],
+    ['주의 사항을 정리하고 있습니다...', '위험 조항 체크 중'],
+    ['결과를 정리하고 있습니다...', '거의 다 됐어요!'],
+  ];
+  let i = 0;
+  const textEl = document.getElementById('loading-text');
+  const subEl = document.getElementById('loading-sub');
+  textEl.textContent = msgs[0][0]; subEl.textContent = msgs[0][1];
+  loadingInterval = setInterval(() => {
+    i = (i + 1) % msgs.length;
+    textEl.textContent = msgs[i][0]; subEl.textContent = msgs[i][1];
+  }, 3500);
+}
+function stopLoadingMessages() {
+  clearInterval(loadingInterval); loadingInterval = null;
+}
+
+// ── Init ───────────────────────────────────────────────
+switchMethod('camera');
+updateVaultBadge();
+</script>
+</body>
+</html>

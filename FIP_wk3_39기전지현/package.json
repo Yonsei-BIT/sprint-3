@@ -1,0 +1,8 @@
+{
+  "name": "docu-ai",
+  "version": "1.0.0",
+  "description": "일상 서류 AI 분석 웹앱",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  }
+}
