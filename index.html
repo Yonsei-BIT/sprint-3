@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>따릉이 경로 안내</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      background: #00adef;
+      color: white;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; }
+    .panel {
+      background: white;
+      padding: 16px 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .input-row { display: flex; gap: 8px; align-items: center; }
+    .input-row label {
+      font-size: 0.85rem; font-weight: 600; color: #555;
+      width: 60px; flex-shrink: 0;
+    }
+    .input-row input {
+      flex: 1; padding: 9px 12px;
+      border: 1.5px solid #ddd; border-radius: 8px;
+      font-size: 0.95rem; outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-row input:focus { border-color: #00adef; }
+    .btn-row { display: flex; gap: 8px; }
+    button {
+      flex: 1; padding: 10px; border: none; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer;
+      transition: background 0.2s;
+    }
+    #btn-search { background: #00adef; color: white; }
+    #btn-search:hover { background: #0099d6; }
+    #btn-reset { background: #eee; color: #555; }
+    #btn-reset:hover { background: #ddd; }
+    #map { flex: 1; min-height: 300px; }
+    #status {
+      font-size: 0.85rem; padding: 2px 0; min-height: 20px;
+    }
+    #status.error { color: #c00; }
+    #status.loading { color: #00adef; }
+    #info-panel {
+      background: white; border-top: 1px solid #eee;
+      padding: 14px 20px; font-size: 0.88rem; color: #333;
+      max-height: 200px; overflow-y: auto; display: none;
+    }
+    #info-panel.visible { display: block; }
+    .info-title { font-weight: 700; font-size: 0.95rem; color: #00adef; margin-bottom: 8px; }
+    .station-card {
+      background: #f7fafd; border: 1px solid #d0e8f5;
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;
+    }
+    .station-card .name { font-weight: 600; margin-bottom: 4px; }
+    .station-card .detail { color: #666; font-size: 0.83rem; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 0.78rem; font-weight: 600; margin-left: 6px;
+    }
+    .badge-ok   { background: #d4f8e8; color: #1a8a4a; }
+    .badge-warn { background: #fff3cd; color: #856404; }
+    .badge-none { background: #fde8e8; color: #b30000; }
+    .route-summary {
+      display: flex; gap: 6px; align-items: center;
+      flex-wrap: wrap; font-size: 0.85rem; margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span>🚲</span>
+  <h1>따릉이 경로 안내</h1>
+</header>
+
+<div class="panel">
+  <div class="input-row">
+    <label>출발지</label>
+    <input id="origin" type="text" placeholder="예: 홍대입구역" />
+  </div>
+  <div class="input-row">
+    <label>목적지</label>
+    <input id="destination" type="text" placeholder="예: 여의도 한강공원" />
+  </div>
+  <div id="status"></div>
+  <div class="btn-row">
+    <button id="btn-search" onclick="searchRoute()">경로 탐색</button>
+    <button id="btn-reset" onclick="resetAll()">초기화</button>
+  </div>
+</div>
+
+<div id="map"></div>
+<div id="info-panel"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const SEOUL_KEY = '445966474d796a64363655516c4f79';
+const BIKE_URL  = 'http://openapi.seoul.go.kr:8088/' + SEOUL_KEY + '/json/bikeList/1/1000/';
+
+// 지도 초기화
+var map = L.map('map').setView([37.5665, 126.9780], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 19,
+}).addTo(map);
+
+var layers = [];
+
+function setStatus(msg, type) {
+  var el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = type || '';
+}
+
+function clearMap() {
+  layers.forEach(function(l) { map.removeLayer(l); });
+  layers = [];
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  var R = 6371000;
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLng = (lng2 - lng1) * Math.PI / 180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+          Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function nearestStation(lat, lng, stations, minBikes) {
+  return stations
+    .filter(function(s) { return parseInt(s.parkingBikeTotCnt) >= minBikes; })
+    .map(function(s) {
+      return Object.assign({}, s, {
+        dist: haversine(lat, lng, parseFloat(s.stationLatitude), parseFloat(s.stationLongitude))
+      });
+    })
+    .sort(function(a, b) { return a.dist - b.dist; })[0];
+}
+
+// Nominatim 지오코딩 (OpenStreetMap, 무료)
+function geocode(address) {
+  var url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
+            encodeURIComponent(address + ' 서울') + '&limit=1&accept-language=ko';
+  return fetch(url, { headers: { 'Accept-Language': 'ko' } })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || data.length === 0) throw new Error('"' + address + '" 위치를 찾을 수 없습니다.');
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), name: data[0].display_name };
+    });
+}
+
+function fetchBikeStations() {
+  return fetch('/api/bikes')
+    .then(function(r) { return r.json(); })
+    .then(function(data) { return data.rentBikeStatus.row; });
+}
+
+function makeIcon(color, emoji) {
+  return L.divIcon({
+    className: '',
+    html: '<div style="background:' + color + ';color:white;padding:4px 10px;border-radius:20px;' +
+          'font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);' +
+          'border:2px solid white">' + emoji + '</div>',
+    iconAnchor: [20, 10],
+  });
+}
+
+function bikeBadge(n) {
+  n = parseInt(n);
+  if (n >= 3) return '<span class="badge badge-ok">자전거 ' + n + '대</span>';
+  if (n >= 1) return '<span class="badge badge-warn">자전거 ' + n + '대</span>';
+  return '<span class="badge badge-none">자전거 없음</span>';
+}
+
+function naviUrl(fromName, fromLat, fromLng, toName, toLat, toLng, mode) {
+  // 카카오맵 길찾기 딥링크 (웹/앱 자동 분기)
+  return 'https://map.kakao.com/link/from/' +
+    encodeURIComponent(fromName) + ',' + fromLat + ',' + fromLng +
+    '/to/' +
+    encodeURIComponent(toName) + ',' + toLat + ',' + toLng;
+}
+
+function naviBtn(label, url, color) {
+  return '<a href="' + url + '" target="_blank" style="' +
+    'display:inline-block;margin-top:8px;padding:7px 14px;' +
+    'background:' + color + ';color:white;border-radius:8px;' +
+    'font-size:0.82rem;font-weight:700;text-decoration:none;">' +
+    label + ' →' +
+  '</a>';
+}
+
+function showInfo(originLabel, destLabel, rent, ret, origin, dest) {
+  var rentLat  = parseFloat(rent.stationLatitude);
+  var rentLng  = parseFloat(rent.stationLongitude);
+  var retLat   = parseFloat(ret.stationLatitude);
+  var retLng   = parseFloat(ret.stationLongitude);
+
+  var url1 = naviUrl(originLabel, origin.lat, origin.lng, rent.stationName, rentLat, rentLng);
+  var url2 = 'https://map.kakao.com/link/from/' +
+    encodeURIComponent(rent.stationName) + ',' + rentLat + ',' + rentLng +
+    '/to/' + encodeURIComponent(ret.stationName) + ',' + retLat + ',' + retLng;
+  var url3 = naviUrl(ret.stationName, retLat, retLng, destLabel, dest.lat, dest.lng);
+
+  var panel = document.getElementById('info-panel');
+  panel.innerHTML =
+    '<div class="info-title">🚲 추천 경로</div>' +
+    '<div class="route-summary">' +
+      '<span>🔵 ' + originLabel + '</span><span>→ 도보 →</span>' +
+      '<span>🟢 대여</span><span>→ 🚲 자전거 →</span>' +
+      '<span>🟠 반납</span><span>→ 도보 →</span>' +
+      '<span>🔴 ' + destLabel + '</span>' +
+    '</div>' +
+
+    '<div class="station-card">' +
+      '<div class="name">① 🚶 출발지 → 대여소</div>' +
+      '<div class="detail">🟢 ' + rent.stationName + ' ' + bikeBadge(rent.parkingBikeTotCnt) +
+        ' · 출발지에서 약 ' + Math.round(rent.dist) + 'm · 거치대 ' + rent.rackTotCnt + '개</div>' +
+      naviBtn('카카오맵으로 도보 길찾기', url1, '#1565c0') +
+    '</div>' +
+
+    '<div class="station-card">' +
+      '<div class="name">② 🚲 대여소 → 반납소</div>' +
+      '<div class="detail">🟠 ' + ret.stationName + ' · 약 ' + Math.round(rent.dist + ret.dist) + 'm 구간</div>' +
+      naviBtn('카카오맵으로 자전거 길찾기', url2, '#00adef') +
+    '</div>' +
+
+    '<div class="station-card">' +
+      '<div class="name">③ 🚶 반납소 → 목적지</div>' +
+      '<div class="detail">🔴 ' + destLabel + ' · 반납소에서 약 ' + Math.round(ret.dist) + 'm</div>' +
+      naviBtn('카카오맵으로 도보 길찾기', url3, '#b71c1c') +
+    '</div>';
+
+  panel.classList.add('visible');
+}
+
+function searchRoute() {
+  var originText = document.getElementById('origin').value.trim();
+  var destText   = document.getElementById('destination').value.trim();
+  if (!originText || !destText) {
+    setStatus('출발지와 목적지를 모두 입력해 주세요.', 'error');
+    return;
+  }
+  setStatus('🔄 경로 탐색 중...', 'loading');
+  clearMap();
+  document.getElementById('info-panel').classList.remove('visible');
+
+  Promise.all([geocode(originText), geocode(destText), fetchBikeStations()])
+    .then(function(results) {
+      var origin   = results[0];
+      var dest     = results[1];
+      var stations = results[2];
+
+      var rent = nearestStation(origin.lat, origin.lng, stations, 1);
+      var ret  = nearestStation(dest.lat,   dest.lng,   stations, 0);
+
+      if (!rent) throw new Error('출발지 근처에 자전거가 있는 대여소가 없습니다.');
+      if (!ret)  throw new Error('목적지 근처에 반납 가능한 대여소가 없습니다.');
+
+      var rentLatLng   = [parseFloat(rent.stationLatitude),  parseFloat(rent.stationLongitude)];
+      var returnLatLng = [parseFloat(ret.stationLatitude),   parseFloat(ret.stationLongitude)];
+
+      // 마커
+      var mOrigin = L.marker([origin.lat, origin.lng], { icon: makeIcon('#1565c0', '🔵 출발') }).addTo(map);
+      var mRent   = L.marker(rentLatLng,               { icon: makeIcon('#2e7d32', '🟢 대여') }).addTo(map);
+      var mReturn = L.marker(returnLatLng,             { icon: makeIcon('#e65100', '🟠 반납') }).addTo(map);
+      var mDest   = L.marker([dest.lat, dest.lng],     { icon: makeIcon('#b71c1c', '🔴 도착') }).addTo(map);
+      layers.push(mOrigin, mRent, mReturn, mDest);
+
+      // 경로선
+      var walkOut = L.polyline([[origin.lat, origin.lng], rentLatLng],
+        { color: '#1565c0', weight: 4, dashArray: '8,6', opacity: 0.8 }).addTo(map);
+      var bike    = L.polyline([rentLatLng, returnLatLng],
+        { color: '#00adef', weight: 5, opacity: 0.9 }).addTo(map);
+      var walkIn  = L.polyline([returnLatLng, [dest.lat, dest.lng]],
+        { color: '#b71c1c', weight: 4, dashArray: '8,6', opacity: 0.8 }).addTo(map);
+      layers.push(walkOut, bike, walkIn);
+
+      // 지도 범위 맞추기
+      var bounds = L.latLngBounds([
+        [origin.lat, origin.lng], rentLatLng, returnLatLng, [dest.lat, dest.lng]
+      ]);
+      map.fitBounds(bounds, { padding: [40, 40] });
+
+      showInfo(originText, destText, rent, ret, origin, dest);
+      setStatus('', '');
+    })
+    .catch(function(e) {
+      setStatus(e.message || '오류가 발생했습니다.', 'error');
+    });
+}
+
+function resetAll() {
+  clearMap();
+  document.getElementById('origin').value = '';
+  document.getElementById('destination').value = '';
+  document.getElementById('info-panel').classList.remove('visible');
+  setStatus('', '');
+}
+
+document.getElementById('origin').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchRoute(); });
+document.getElementById('destination').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchRoute(); });
+</script>
+</body>
+</html>
