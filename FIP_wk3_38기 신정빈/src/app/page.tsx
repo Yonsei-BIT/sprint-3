@@ -64,8 +64,8 @@ export default function HomePage() {
               대학 학회와 기업 협업을 잇는 작업대
             </div>
             <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-[1.16] text-slate-950 md:text-5xl">
-              <span className="block">학회의 강점을</span>
-              <span className="block">기업이 이해하는 협업 제안으로</span>
+              <span className="block">학회의 강점을 기업이 이해하는</span>
+              <span className="block">협업 제안으로</span>
               <span className="block">바꿉니다</span>
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600">
