@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DocuAI — Sprint 3 Log</title>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:#111;color:#fff;line-height:1.5;}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(17,17,17,0.95);backdrop-filter:blur(10px);border-bottom:1px solid #222;padding:10px 20px;display:flex;align-items:center;gap:10px;overflow-x:auto;}
+.nav-logo{font-size:14px;font-weight:800;color:#4f6ef7;white-space:nowrap;margin-right:8px;}
+.nav-dot{width:7px;height:7px;border-radius:50%;background:#333;flex-shrink:0;cursor:pointer;transition:all .2s;}
+.nav-dot.active,.nav-dot:hover{background:#4f6ef7;transform:scale(1.5);}
+.nav-label{font-size:11px;color:#666;white-space:nowrap;display:none;}
+
+/* SLIDE BASE */
+.slide{
+  min-height:100vh;
+  padding:80px 40px 60px;
+  max-width:960px;
+  margin:0 auto;
+  border-bottom:1px solid #1a1a1a;
+  display:flex;
+  flex-direction:column;
+}
+
+/* SLIDE NUMBER + TITLE */
+.slide-num{font-size:11px;font-weight:800;color:#4f6ef7;letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px;}
+.slide-title{font-size:36px;font-weight:900;line-height:1.2;margin-bottom:6px;color:#fff;}
+.slide-title em{font-style:normal;color:#4f6ef7;}
+.slide-sub{font-size:15px;color:#666;margin-bottom:32px;}
+
+/* COVER */
+.slide-cover{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:80px 40px;max-width:960px;margin:0 auto;border-bottom:1px solid #1a1a1a;}
+.cover-eyebrow{display:inline-block;background:rgba(79,110,247,.2);color:#818cf8;font-size:12px;font-weight:700;padding:5px 14px;border-radius:99px;margin-bottom:24px;letter-spacing:.1em;}
+.cover-title{font-size:72px;font-weight:900;line-height:1.05;margin-bottom:20px;}
+.cover-title em{font-style:normal;background:linear-gradient(135deg,#4f6ef7,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.cover-desc{font-size:18px;color:#888;max-width:520px;line-height:1.7;margin-bottom:40px;}
+.cover-chips{display:flex;gap:12px;flex-wrap:wrap;}
+.cover-chip{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:99px;padding:8px 16px;font-size:13px;color:#aaa;}
+.cover-chip strong{color:#fff;}
+
+/* STAT CARDS */
+.stat-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;}
+.stat-card{flex:1;min-width:150px;background:#1a1a1a;border:1px solid #252525;border-radius:16px;padding:20px;}
+.stat-num{font-size:36px;font-weight:900;color:#4f6ef7;line-height:1;}
+.stat-label{font-size:13px;color:#aaa;margin-top:6px;}
+.stat-src{font-size:11px;color:#444;margin-top:8px;}
+
+/* QUOTE */
+.quote{background:#161616;border-left:3px solid #4f6ef7;border-radius:0 10px 10px 0;padding:14px 18px;margin-bottom:10px;}
+.quote p{font-size:14px;color:#ccc;line-height:1.6;}
+.quote cite{font-size:11px;color:#555;display:block;margin-top:6px;font-style:normal;}
+
+/* LIST */
+.list{display:flex;flex-direction:column;gap:10px;margin-bottom:24px;}
+.list-item{display:flex;align-items:flex-start;gap:12px;background:#161616;border:1px solid #222;border-radius:12px;padding:14px 16px;}
+.list-icon{font-size:20px;flex-shrink:0;line-height:1.2;}
+.list-body strong{font-size:14px;color:#fff;display:block;margin-bottom:2px;}
+.list-body span{font-size:13px;color:#777;}
+
+/* COMPARE */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
+.compare-card{background:#161616;border:1px solid #222;border-radius:14px;padding:20px;}
+.compare-card.bad{border-top:3px solid #ef4444;}
+.compare-card.good{border-top:3px solid #10b981;}
+.compare-head{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;}
+.compare-card.bad .compare-head{color:#ef4444;}
+.compare-card.good .compare-head{color:#10b981;}
+.compare-row-item{font-size:13px;color:#aaa;margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;}
+
+/* FLOW */
+.flow{display:flex;flex-direction:column;gap:4px;margin-bottom:24px;}
+.flow-step{display:flex;align-items:center;gap:12px;}
+.flow-node{flex:1;background:#1a1a1a;border:1px solid #252525;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:600;color:#ddd;}
+.flow-node.hi{background:rgba(79,110,247,.12);border-color:rgba(79,110,247,.4);color:#818cf8;}
+.flow-arrow{color:#333;font-size:20px;margin-left:20px;line-height:1;}
+
+/* TAGS */
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
+.tag{padding:6px 14px;border-radius:99px;font-size:13px;font-weight:600;}
+.tag-blue{background:rgba(79,110,247,.15);color:#818cf8;}
+.tag-purple{background:rgba(167,139,250,.15);color:#a78bfa;}
+.tag-green{background:rgba(16,185,129,.15);color:#10b981;}
+.tag-yellow{background:rgba(245,158,11,.15);color:#f59e0b;}
+.tag-red{background:rgba(239,68,68,.15);color:#ef4444;}
+
+/* FIX CARDS */
+.fix{background:#161616;border:1px solid #222;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;}
+.fix-badge{font-size:10px;font-weight:800;padding:3px 7px;border-radius:4px;flex-shrink:0;margin-top:2px;}
+.fix-badge.bug{background:rgba(239,68,68,.2);color:#ef4444;}
+.fix-badge.upd{background:rgba(245,158,11,.2);color:#f59e0b;}
+.fix-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:3px;}
+.fix-desc{font-size:12px;color:#777;}
+
+/* PHOTO ZONE */
+.photos{display:grid;gap:12px;margin-top:20px;}
+.photos.c1{grid-template-columns:1fr;}
+.photos.c2{grid-template-columns:1fr 1fr;}
+.photos.c3{grid-template-columns:1fr 1fr 1fr;}
+.photo-zone{border:2px dashed #2a2a2a;border-radius:14px;background:#161616;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;min-height:180px;}
+.photo-zone:hover{border-color:#4f6ef7;background:#18192a;}
+.photo-zone.has-img{border-style:solid;border-color:#333;}
+.photo-zone img{width:100%;height:100%;object-fit:contain;display:block;border-radius:12px;}
+.photo-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.ph{text-align:center;padding:24px;pointer-events:none;}
+.ph-icon{font-size:28px;margin-bottom:6px;}
+.ph-text{font-size:12px;color:#555;}
+.ph-label{font-size:11px;color:#444;margin-top:4px;}
+.del-btn{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);border:none;color:#fff;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;display:none;z-index:2;}
+.photo-zone.has-img .del-btn{display:block;}
+.photo-zone.has-img .ph{display:none;}
+.photo-tall{min-height:280px;}
+.photo-mid{min-height:200px;}
+
+/* INFO BOX */
+.info-box{background:rgba(79,110,247,.08);border:1px solid rgba(79,110,247,.2);border-radius:10px;padding:14px 16px;font-size:13px;color:#888;margin-top:auto;}
+.info-box strong{color:#818cf8;}
+
+/* FOOTER TAG */
+.slide-footer{margin-top:auto;padding-top:24px;font-size:11px;color:#333;display:flex;justify-content:space-between;}
+
+@media(max-width:640px){
+  .slide,.slide-cover{padding:72px 20px 48px;}
+  .slide-title{font-size:26px;}
+  .cover-title{font-size:44px;}
+  .compare,.photos.c2,.photos.c3{grid-template-columns:1fr;}
+  .stat-row{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">DocuAI</span>
+  <div class="nav-dot active" onclick="scrollTo(0)" title="Cover"></div>
+  <div class="nav-dot" onclick="goSlide(1)" title="01"></div>
+  <div class="nav-dot" onclick="goSlide(2)" title="02"></div>
+  <div class="nav-dot" onclick="goSlide(3)" title="03"></div>
+  <div class="nav-dot" onclick="goSlide(4)" title="04"></div>
+  <div class="nav-dot" onclick="goSlide(5)" title="05"></div>
+  <div class="nav-dot" onclick="goSlide(6)" title="06"></div>
+  <div class="nav-dot" onclick="goSlide(7)" title="07"></div>
+  <div class="nav-dot" onclick="goSlide(8)" title="08"></div>
+  <div class="nav-dot" onclick="goSlide(9)" title="09"></div>
+  <div class="nav-dot" onclick="goSlide(10)" title="10"></div>
+  <div class="nav-dot" onclick="goSlide(11)" title="11"></div>
+  <div class="nav-dot" onclick="goSlide(12)" title="12"></div>
+</nav>
+
+<!-- COVER -->
+<div class="slide-cover" id="slide-0">
+  <span class="cover-eyebrow">FIP Sprint 3 · 2026.05</span>
+  <div class="cover-title">Docu<em>AI</em></div>
+  <p class="cover-desc">지류 서류를 사진으로 찍으면 AI가 핵심을 분석하고,<br/>언제든 다시 찾아볼 수 있는 서류 관리 서비스</p>
+  <div class="cover-chips">
+    <div class="cover-chip"><strong>전지현</strong> · 연세대 독문/경영 3학년</div>
+    <div class="cover-chip"><strong>effervescent-klepon-3396cb.netlify.app</strong></div>
+    <div class="cover-chip">Claude API · Netlify Functions · GitHub</div>
+  </div>
+</div>
+
+<!-- 01 문제 -->
+<div class="slide" id="slide-1">
+  <div class="slide-num">01 · Problem</div>
+  <div class="slide-title">해결하려 한 <em>문제</em></div>
+  <div class="slide-sub">사람들은 왜 설명서를 읽지 않는가</div>
+
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-num">58.1%</div>
+      <div class="stat-label">설명서가 불편하다고 응답</div>
+      <div class="stat-src">제품 사용 설명서 인식 및 활용도 조사</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">48.8%</div>
+      <div class="stat-label">"찾기 쉬운 구성이 필요"</div>
+      <div class="stat-src">동 조사</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">32.0%</div>
+      <div class="stat-label">"이미지를 더 써야 한다"</div>
+      <div class="stat-src">동 조사</div>
+    </div>
+  </div>
+
+  <div class="quote">
+    <p>"설명서를 보면 어려운 단어나 영어가 많고 가독성이 낮아 잘 읽지 않는 것 같다"</p>
+    <cite>— 임휘연(23) · 시빅뉴스</cite>
+  </div>
+  <div class="quote">
+    <p>인지적 구두쇠 이론 — 인간은 두뇌 에너지를 아끼려 함 → 긴 설명서 읽기에 대한 본능적 거부감</p>
+    <cite>— 김경일 교수 · 사피엔스 스튜디오</cite>
+  </div>
+
+  <div class="photos c1" style="margin-top:20px">
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">사진 추가</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>01 / 12</span></div>
+</div>
+
+<!-- 02 기존 방식 -->
+<div class="slide" id="slide-2">
+  <div class="slide-num">02 · Before vs After</div>
+  <div class="slide-title"><em>기존 방식</em>의 한계</div>
+  <div class="slide-sub">사람들이 지금 하는 것들 vs DocuAI</div>
+
+  <div class="compare">
+    <div class="compare-card bad">
+      <div class="compare-head">😩 기존 방식</div>
+      <div class="compare-row-item"><span>❌</span> 수십 페이지 설명서 처음부터 읽기</div>
+      <div class="compare-row-item"><span>❌</span> 인터넷에 제품명+증상 검색</div>
+      <div class="compare-row-item"><span>❌</span> 설명서 어딘가에 있는데 못 찾음</div>
+      <div class="compare-row-item"><span>❌</span> 그냥 직감으로 사용</div>
+      <div class="compare-row-item"><span>❌</span> CS 센터에 반복 문의</div>
+    </div>
+    <div class="compare-card good">
+      <div class="compare-head">✅ DocuAI</div>
+      <div class="compare-row-item"><span>✅</span> 사진 찍으면 핵심 즉시 추출</div>
+      <div class="compare-row-item"><span>✅</span> 자연어로 바로 질문</div>
+      <div class="compare-row-item"><span>✅</span> 서류함에 저장 → 언제든 열람</div>
+      <div class="compare-row-item"><span>✅</span> 표/절차 자동 시각화</div>
+      <div class="compare-row-item"><span>✅</span> 지류 보관 불필요</div>
+    </div>
+  </div>
+
+  <div class="photos c2">
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">사진 추가</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">사진 추가</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>02 / 12</span></div>
+</div>
+
+<!-- 03 AI 지점 -->
+<div class="slide" id="slide-3">
+  <div class="slide-num">03 · AI Integration</div>
+  <div class="slide-title">AI를 붙인 <em>지점</em></div>
+  <div class="slide-sub">어디에 AI가 필요했는가</div>
+
+  <div class="list">
+    <div class="list-item">
+      <div class="list-icon">👁</div>
+      <div class="list-body"><strong>서류 이미지 → 텍스트 인식 (Vision API)</strong><span>별도 OCR 없이 Claude가 이미지를 직접 읽고 이해</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">🏷</div>
+      <div class="list-body"><strong>핵심 항목 자동 추출 + 위험도 분류</strong><span>info / warning / danger 3단계 자동 분류</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">⚡</div>
+      <div class="list-body"><strong>"지금 당장 해야 할 것" 액션 추출</strong><span>단순 요약이 아닌 시점별 행동 가이드 생성</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">📊</div>
+      <div class="list-body"><strong>표/절차 구조화 자동 변환</strong><span>서류 속 표를 ✅❌⚠️ 시각 표로 재구성</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">💬</div>
+      <div class="list-body"><strong>저장 서류 기반 자연어 Q&amp;A</strong><span>분석 결과 기반 답변 — 서류 다시 안 찾아도 됨</span></div>
+    </div>
+  </div>
+
+  <div class="photos c2">
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">분석 결과 화면</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">Q&amp;A 화면</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>03 / 12</span></div>
+</div>
+
+<!-- 04 도구 -->
+<div class="slide" id="slide-4">
+  <div class="slide-num">04 · Tools</div>
+  <div class="slide-title">사용한 <em>도구</em></div>
+
+  <div class="tags">
+    <span class="tag tag-blue">Claude Code</span>
+    <span class="tag tag-purple">Anthropic Claude API</span>
+    <span class="tag tag-green">Netlify Functions</span>
+    <span class="tag tag-green">Netlify</span>
+    <span class="tag tag-yellow">GitHub</span>
+  </div>
+
+  <div class="list">
+    <div class="list-item">
+      <div class="list-icon">🤖</div>
+      <div class="list-body"><strong>Claude Code</strong><span>전체 코드 개발 — HTML/CSS/JS + Node.js 서버리스 함수</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">✨</div>
+      <div class="list-body"><strong>Anthropic Claude API (claude-haiku-4-5)</strong><span>서류 Vision 분석 + Q&A 응답 생성, 속도 3~8초</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">🔒</div>
+      <div class="list-body"><strong>Netlify Functions</strong><span>서버리스 백엔드 — API Key 보안 처리, 프론트 노출 차단</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">🚀</div>
+      <div class="list-body"><strong>Netlify + GitHub</strong><span>정적 사이트 배포 + push 시 자동 CI/CD</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">💾</div>
+      <div class="list-body"><strong>localStorage</strong><span>로그인 없이 서류함 데이터 브라우저 저장</span></div>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>04 / 12</span></div>
+</div>
+
+<!-- 05 입력값 -->
+<div class="slide" id="slide-5">
+  <div class="slide-num">05 · Input</div>
+  <div class="slide-title"><em>입력값</em></div>
+  <div class="slide-sub">사용자가 넣는 것들</div>
+
+  <div class="list">
+    <div class="list-item">
+      <div class="list-icon">📷</div>
+      <div class="list-body"><strong>카메라 촬영 (최대 10장)</strong><span>브라우저 내 카메라로 바로 촬영 — iOS Safari 5단계 폴백 지원</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">📁</div>
+      <div class="list-body"><strong>파일 업로드</strong><span>JPG · PNG · PDF 지원</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">📦</div>
+      <div class="list-body"><strong>서류 유형 선택</strong><span>제품설명서 (현재 지원) — 향후 약관·보험·계약서 확장 예정</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">💬</div>
+      <div class="list-body"><strong>자연어 질문</strong><span>분석 후 "유리용기 써도 돼?" 등 자유 질문</span></div>
+    </div>
+  </div>
+
+  <div class="photos c2">
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">카메라 화면</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">촬영 후 화면</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>05 / 12</span></div>
+</div>
+
+<!-- 06 처리과정 -->
+<div class="slide" id="slide-6">
+  <div class="slide-num">06 · Process</div>
+  <div class="slide-title"><em>처리 과정</em></div>
+
+  <div class="flow">
+    <div class="flow-step"><div class="flow-node">① 이미지 → Base64 인코딩 (브라우저)</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><div class="flow-node hi">② Netlify Function 호출 (POST /analyze)</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><div class="flow-node">③ 모든 페이지 이미지 배열 → Claude API 전송</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><div class="flow-node hi">④ Claude Vision 분석 → JSON 구조로 반환</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><div class="flow-node">⑤ JSON 파싱 → 액션카드/표/절차 시각화 렌더링</div></div>
+  </div>
+
+  <div class="info-box" style="margin-top:20px">
+    🔒 <strong>API Key 보안</strong> — Netlify 환경변수에서만 읽힘, 프론트엔드에 절대 노출 안 됨
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>06 / 12</span></div>
+</div>
+
+<!-- 07 출력물 -->
+<div class="slide" id="slide-7">
+  <div class="slide-num">07 · Output</div>
+  <div class="slide-title"><em>출력물</em></div>
+  <div class="slide-sub">AI가 만들어내는 것들</div>
+
+  <div class="tags">
+    <span class="tag tag-blue">⚡ 액션 카드</span>
+    <span class="tag tag-purple">📝 요약</span>
+    <span class="tag tag-green">📊 시각화 표</span>
+    <span class="tag tag-yellow">📋 절차 카드</span>
+    <span class="tag tag-red">🚨 주의 조항</span>
+    <span class="tag tag-blue">✅ 체크리스트</span>
+    <span class="tag tag-purple">💡 종합 의견</span>
+    <span class="tag tag-green">💬 Q&amp;A</span>
+  </div>
+
+  <div class="photos c2">
+    <div class="photo-zone photo-tall" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">분석 결과 화면</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+    <div class="photo-zone photo-tall" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">표 / 액션 카드</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>07 / 12</span></div>
+</div>
+
+<!-- 08 수정 과정 -->
+<div class="slide" id="slide-8">
+  <div class="slide-num">08 · Iterations</div>
+  <div class="slide-title"><em>수정 과정</em></div>
+  <div class="slide-sub">시도 → 실패 → 수정의 반복</div>
+
+  <div class="fix">
+    <span class="fix-badge bug">BUG</span>
+    <div><div class="fix-title">API Key 프론트 노출</div><div class="fix-desc">→ Netlify Functions 백엔드 구조로 전환, 서버사이드에서만 API 호출</div></div>
+  </div>
+  <div class="fix">
+    <span class="fix-badge bug">BUG</span>
+    <div><div class="fix-title">iOS Safari 카메라 "string did not match" 에러</div><div class="fix-desc">→ 5단계 폴백 처리 (고화질 → 720p → 해상도 제약 없이 → 구형 방식 → any)</div></div>
+  </div>
+  <div class="fix">
+    <span class="fix-badge bug">BUG</span>
+    <div><div class="fix-title">카메라 2배 줌으로 찍힘</div><div class="fix-desc">→ object-fit: cover → contain 변경, 해상도 제약 제거</div></div>
+  </div>
+  <div class="fix">
+    <span class="fix-badge bug">BUG</span>
+    <div><div class="fix-title">JSON 파싱 깨짐 + 504 timeout</div><div class="fix-desc">→ max_tokens 2048→4096, 모델 sonnet→haiku, netlify 타임아웃 26초 설정</div></div>
+  </div>
+  <div class="fix">
+    <span class="fix-badge upd">FIX</span>
+    <div><div class="fix-title">단일 페이지만 분석됨</div><div class="fix-desc">→ 모든 촬영 페이지를 배열로 API에 전달, 멀티페이지 종합 분석</div></div>
+  </div>
+  <div class="fix">
+    <span class="fix-badge upd">FIX</span>
+    <div><div class="fix-title">액션카드가 "3페이지 읽으세요" 반환</div><div class="fix-desc">→ 프롬프트에 "페이지 참조 금지, 실제 내용 직접 추출" 명시</div></div>
+  </div>
+  <div class="fix">
+    <span class="fix-badge upd">FIX</span>
+    <div><div class="fix-title">분석 후 자동 스크롤 (원하지 않는 동작)</div><div class="fix-desc">→ 자동 스크롤 제거, 분석 버튼 하단 고정(sticky)으로 변경</div></div>
+  </div>
+
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>08 / 12</span></div>
+</div>
+
+<!-- 09 개선점 -->
+<div class="slide" id="slide-9">
+  <div class="slide-num">09 · Improvements</div>
+  <div class="slide-title">기존 대비 <em>좋아진 점</em></div>
+
+  <div class="list">
+    <div class="list-item">
+      <div class="list-icon">📖→📱</div>
+      <div class="list-body"><strong>설명서를 읽지 않아도 된다</strong><span>사진 한 번으로 핵심 추출 — 수십 페이지 불필요</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">⚡</div>
+      <div class="list-body"><strong>"지금 당장 뭘 해야 해"를 먼저 알려준다</strong><span>시점별 액션 카드 — 설치 전 / 사용 중 / 에러 발생 시</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">📊</div>
+      <div class="list-body"><strong>표·절차가 시각화된다</strong><span>✅❌⚠️ 으로 용기 사용 가능 여부 등 한눈에 파악</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">🗄</div>
+      <div class="list-body"><strong>지류 보관 불필요</strong><span>서류함에 저장 → 검색·열람 가능, 버려도 OK</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">💬</div>
+      <div class="list-body"><strong>즉각적인 Q&amp;A</strong><span>"C-A1 에러코드 떴는데 뭐해야해?" 바로 답변</span></div>
+    </div>
+  </div>
+
+  <div class="photos c3">
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">서류함 화면</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">분석 결과</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+    <div class="photo-zone photo-mid" onclick="pick(this)">
+      <input type="file" accept="image/*" onchange="prev(this)"/>
+      <div class="ph"><div class="ph-icon">📸</div><div class="ph-text">Q&amp;A 답변</div></div>
+      <button class="del-btn" onclick="del(event,this)">✕</button>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>09 / 12</span></div>
+</div>
+
+<!-- 10 한계 -->
+<div class="slide" id="slide-10">
+  <div class="slide-num">10 · Limitations</div>
+  <div class="slide-title"><em>한계</em></div>
+
+  <div class="list">
+    <div class="list-item">
+      <div class="list-icon">📄</div>
+      <div class="list-body"><strong>긴 문서 처리 부담</strong><span>수십 페이지 설명서는 촬영 자체가 부담, API 비용도 증가</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">📷</div>
+      <div class="list-body"><strong>이미지 화질 의존성</strong><span>흐리거나 기울어진 사진은 AI 인식 정확도 하락</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">💾</div>
+      <div class="list-body"><strong>localStorage 한계</strong><span>브라우저 저장 (~5MB), 기기 바뀌면 서류함 초기화</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">⏱</div>
+      <div class="list-body"><strong>Netlify 타임아웃 26초</strong><span>여러 장 한번에 분석 시 속도 저하 가능</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">💳</div>
+      <div class="list-body"><strong>API 과금</strong><span>사용량에 따라 과금 — 무제한 무료 서비스 불가</span></div>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>10 / 12</span></div>
+</div>
+
+<!-- 11 다음 개선 -->
+<div class="slide" id="slide-11">
+  <div class="slide-num">11 · Next Steps</div>
+  <div class="slide-title">다음에 <em>개선할 점</em></div>
+
+  <div class="list">
+    <div class="list-item">
+      <div class="list-icon">🛠</div>
+      <div class="list-body"><strong>실사용자 피드백 수집</strong><span>서류 유형별 정확도 검증, 어떤 기능이 더 필요한지 확인</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">☁️</div>
+      <div class="list-body"><strong>클라우드 저장소 연동</strong><span>localStorage → 계정 기반 서버 저장으로 기기 간 공유</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">🔔</div>
+      <div class="list-body"><strong>알림 기능</strong><span>"보증기간 만료 D-30" 등 날짜 기반 푸시 알림</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">⚡</div>
+      <div class="list-body"><strong>스트리밍 응답</strong><span>분석 결과를 타이핑되듯 실시간으로 보여줘 체감 속도 개선</span></div>
+    </div>
+  </div>
+
+  <div style="background:#161616;border:1px solid #2a2a2a;border-radius:14px;padding:20px;margin-top:4px;">
+    <div style="font-size:12px;font-weight:700;color:#a78bfa;letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px;">🔭 수요 기반 서류 유형 확장 가능성</div>
+    <div style="font-size:13px;color:#888;margin-bottom:14px;">현재는 제품설명서에 집중했지만, 소비자 수요가 확인된다면 동일 파이프라인으로 확장 가능하다.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <span class="tag tag-purple">📋 약관 — 독소 조항 자동 추출</span>
+      <span class="tag tag-blue">🏥 보험 — 보장 범위 표 시각화</span>
+      <span class="tag tag-yellow">✍️ 계약서 — 리스크 조항 하이라이트</span>
+      <span class="tag" style="background:#1a1a1a;color:#555;border:1px solid #222;">영수증 · 처방전 · 세금계산서...</span>
+    </div>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3</span><span>11 / 12</span></div>
+</div>
+
+<!-- 12 배운 것 -->
+<div class="slide" id="slide-12">
+  <div class="slide-num">12 · Learnings</div>
+  <div class="slide-title">새로 배운 <em>AI 활용 방식</em></div>
+
+  <div class="list">
+    <div class="list-item">
+      <div class="list-icon">👁</div>
+      <div class="list-body"><strong>Vision API = 별도 OCR 불필요</strong><span>이미지를 Base64로 넘기면 Claude가 텍스트+표+그림까지 한번에 이해</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">✍️</div>
+      <div class="list-body"><strong>프롬프트가 곧 UX</strong><span>"페이지 참조 금지", "2줄 이내", "원문 복사 금지" 같은 제약이 실제 사용자 경험을 바꿈</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">🎯</div>
+      <div class="list-body"><strong>구조화된 JSON 출력으로 UX 제어</strong><span>자유 텍스트 대신 JSON schema를 강제 → 프론트에서 표/카드로 시각화 가능</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">⚖️</div>
+      <div class="list-body"><strong>모델 선택 = 속도/비용/품질 트레이드오프</strong><span>Sonnet(36초 타임아웃) → Haiku(3~8초)로 전환해 서비스 가능 수준 달성</span></div>
+    </div>
+    <div class="list-item">
+      <div class="list-icon">🔁</div>
+      <div class="list-body"><strong>배포 → 실사용 → 버그 발견 → 수정의 반복</strong><span>로컬 테스트로는 발견 못한 iOS 카메라 에러, 타임아웃 등을 실사용에서 발견</span></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    🔗 서비스: <strong>effervescent-klepon-3396cb.netlify.app</strong> &nbsp;·&nbsp; 로그: <strong>/log.html</strong>
+  </div>
+  <div class="slide-footer"><span>DocuAI · Sprint 3 · 전지현</span><span>12 / 12</span></div>
+</div>
+
+<script>
+function pick(zone) { if (!zone.classList.contains('has-img')) zone.querySelector('input').click(); }
+function prev(input) {
+  const file = input.files[0]; if (!file) return;
+  const zone = input.closest('.photo-zone');
+  const reader = new FileReader();
+  reader.onload = e => {
+    let img = zone.querySelector('img');
+    if (!img) { img = document.createElement('img'); zone.insertBefore(img, zone.querySelector('.del-btn')); }
+    img.src = e.target.result; zone.classList.add('has-img');
+  };
+  reader.readAsDataURL(file);
+}
+function del(e, btn) {
+  e.stopPropagation();
+  const zone = btn.closest('.photo-zone');
+  zone.querySelector('img')?.remove();
+  zone.classList.remove('has-img');
+  zone.querySelector('input').value = '';
+}
+function goSlide(n) { document.getElementById('slide-'+n)?.scrollIntoView({behavior:'smooth'}); }
+
+const allSlides = document.querySelectorAll('.slide, .slide-cover');
+const dots = document.querySelectorAll('.nav-dot');
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const n = e.target.id.replace('slide-','');
+      dots.forEach((d,i) => d.classList.toggle('active', String(i) === String(n)));
+    }
+  });
+}, {threshold:0.4}).observe && allSlides.forEach(s => {
+  new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const n = e.target.id.replace('slide-','');
+        dots.forEach((d,i) => d.classList.toggle('active', String(i) === String(n)));
+      }
+    });
+  }, {threshold:0.4}).observe(s);
+});
+</script>
+</body>
+</html>

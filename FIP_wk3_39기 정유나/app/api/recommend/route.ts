@@ -1,0 +1,210 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+interface ParticipantRow {
+  name: string
+  cant_eat: string[]
+  dont_want: string[]
+  budget: string
+  lat: number | null
+  lng: number | null
+}
+
+interface KakaoDoc {
+  place_name: string; address_name: string; category_name: string
+  distance: string; phone: string; place_url: string; x: string; y: string
+}
+
+interface RestaurantItem {
+  name: string; address: string; distance: string
+  phone?: string; url?: string; lat?: number; lng?: number
+}
+
+interface MenuRecommendation {
+  name: string
+  restaurants: RestaurantItem[]
+}
+
+interface CategoryRecommendation {
+  category: string
+  menus: MenuRecommendation[]
+  matchCount: number
+  totalCount: number
+}
+
+// ─── 카테고리별 메뉴 ────────────────────────────────────────────────────────────
+const CATEGORY_MENUS: Record<string, string[]> = {
+  한식:       ['된장찌개', '제육볶음', '비빔밥', '순두부찌개', '삼겹살', '갈비탕', '불고기', '칼국수'],
+  일식:       ['라멘', '돈카츠', '우동', '규동', '오야코동', '스시', '나베', '소바'],
+  중식:       ['짜장면', '짬뽕', '볶음밥', '탕수육', '마라탕', '깐풍기', '딤섬'],
+  양식:       ['크림파스타', '피자', '스테이크', '리조또', '알리오올리오', '뇨끼'],
+  분식:       ['떡볶이', '순대', '튀김', '김밥', '라볶이', '치즈떡볶이', '쫄면'],
+  치킨:       ['후라이드', '양념치킨', '간장치킨', '반반치킨', '파닭'],
+  패스트푸드: ['버거', '감자튀김', '치킨너겟', '치즈버거'],
+  요리주점:   ['파전', '모듬전', '닭볶음탕', '두루치기', '해물파전', '감자전'],
+}
+
+const RESTRICT_MENU_AVOID: Record<string, string[]> = {
+  pork:       ['삼겹살', '제육볶음', '순대', '돈카츠', '두루치기'],
+  seafood:    ['짬뽕', '나베', '스시', '소바', '해물파전'],
+  chicken:    ['오야코동', '간장치킨', '양념치킨', '후라이드', '깐풍기', '치킨너겟', '파닭', '반반치킨', '닭볶음탕'],
+  beef:       ['불고기', '갈비탕', '규동', '스테이크'],
+  vegetarian: ['삼겹살', '제육볶음', '돈카츠', '규동', '불고기', '갈비탕', '순대', '후라이드', '양념치킨',
+               '깐풍기', '닭볶음탕', '두루치기', '오야코동', '치킨너겟', '간장치킨', '반반치킨', '파닭'],
+  dairy:      ['크림파스타', '리조또', '치즈떡볶이', '뇨끼'],
+  egg:        ['오야코동'],
+  mushroom:   ['나베'],
+  gluten:     ['라멘', '우동', '소바', '짜장면', '짬뽕', '칼국수', '돈카츠', '크림파스타', '알리오올리오', '뇨끼', '피자'],
+  nuts:       [],
+}
+
+// ─── 먹기 싫은 것 → 메뉴 필터 ─────────────────────────────────────────────────
+const DONT_WANT_MENU_AVOID: Record<string, string[]> = {
+  meat: ['삼겹살', '제육볶음', '갈비탕', '불고기', '돈카츠', '규동', '스테이크',
+         '후라이드', '양념치킨', '간장치킨', '반반치킨', '파닭', '오야코동',
+         '닭볶음탕', '두루치기', '치킨너겟'],
+  soup: ['된장찌개', '순두부찌개', '갈비탕', '칼국수', '라멘', '우동', '짬뽕', '나베'],
+}
+
+const DISLIKE_TO_CATEGORY: Record<string, string[]> = {
+  korean: ['한식'], chinese: ['중식'], japanese: ['일식'],
+  western: ['양식'], bunsik: ['분식'], meat: ['치킨'], fastfood: ['패스트푸드'],
+}
+
+function pickMenus(category: string, cantEat: string[], dontWant: string[] = []): string[] {
+  const all = CATEGORY_MENUS[category] ?? ['다양한 메뉴']
+  const avoid = [
+    ...cantEat.flatMap(r => RESTRICT_MENU_AVOID[r] ?? []),
+    ...dontWant.flatMap(d => DONT_WANT_MENU_AVOID[d] ?? []),
+  ]
+  const filtered = all.filter(m => !avoid.some(a => m.includes(a)))
+  return filtered.length > 0 ? filtered : all
+}
+
+// ─── 메뉴별 카카오 키워드 검색 ────────────────────────────────────────────────
+async function searchMenuRestaurants(key: string, query: string): Promise<RestaurantItem[]> {
+  try {
+    const res = await fetch(
+      `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(query)}&size=10`,
+      { headers: { Authorization: `KakaoAK ${key}` } }
+    )
+    const data = await res.json()
+    return (data.documents ?? []).map((d: KakaoDoc) => ({
+      name: d.place_name,
+      address: d.address_name,
+      distance: d.distance || '',
+      phone: d.phone,
+      url: d.place_url,
+      lat: parseFloat(d.y),
+      lng: parseFloat(d.x),
+    }))
+  } catch { return [] }
+}
+
+// ─── 더미 데이터 (API 키 없을 때) ─────────────────────────────────────────────
+const DUMMY_BY_CATEGORY: Record<string, RestaurantItem[]> = {
+  한식: [
+    { name: '진이찬방',    address: '근처', distance: '150', phone: '', url: '', lat: 37.5665, lng: 126.9780 },
+    { name: '연세칼국수',  address: '근처', distance: '280', phone: '', url: '', lat: 37.5665, lng: 126.9780 },
+    { name: '한촌설렁탕',  address: '근처', distance: '480', phone: '', url: '', lat: 37.5665, lng: 126.9780 },
+    { name: '본죽&비빔밥', address: '근처', distance: '720', phone: '', url: '', lat: 37.5665, lng: 126.9780 },
+  ],
+  일식: [
+    { name: '스시히로', address: '근처', distance: '220', phone: '', url: '', lat: 37.5665, lng: 126.9780 },
+    { name: '멘야마루', address: '근처', distance: '450', phone: '', url: '', lat: 37.5665, lng: 126.9780 },
+    { name: '마루초밥', address: '근처', distance: '540', phone: '', url: '', lat: 37.5665, lng: 126.9780 },
+  ],
+  중식:       [{ name: '홍콩반점',   address: '근처', distance: '310', phone: '', url: '', lat: 37.5665, lng: 126.9780 }],
+  양식:       [{ name: '파스타베네', address: '근처', distance: '400', phone: '', url: '', lat: 37.5665, lng: 126.9780 }],
+  분식:       [{ name: '엽기떡볶이', address: '근처', distance: '600', phone: '', url: '', lat: 37.5665, lng: 126.9780 }],
+  치킨:       [{ name: '굽네치킨',   address: '근처', distance: '650', phone: '', url: '', lat: 37.5665, lng: 126.9780 }],
+  패스트푸드: [{ name: '맥도날드',   address: '근처', distance: '800', phone: '', url: '', lat: 37.5665, lng: 126.9780 }],
+  요리주점:   [{ name: '맛있는주점', address: '근처', distance: '500', phone: '', url: '', lat: 37.5665, lng: 126.9780 }],
+}
+
+// ─── API Route ──────────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  const { room_code } = await req.json()
+  if (!room_code) return NextResponse.json({ error: '방 코드가 없습니다' }, { status: 400 })
+
+  await supabase.from('rooms').update({ status: 'recommending' }).eq('code', room_code)
+
+  try {
+    const [{ data: roomData }, { data: participants, error: pErr }] = await Promise.all([
+      supabase.from('rooms').select('location').eq('code', room_code).single(),
+      supabase.from('participants').select('*').eq('room_code', room_code).eq('completed', true),
+    ])
+
+    if (pErr) throw pErr
+    if (!participants?.length) {
+      await supabase.from('rooms').update({ status: 'waiting' }).eq('code', room_code)
+      return NextResponse.json({ error: '참여자가 없습니다' }, { status: 400 })
+    }
+
+    const locationText = roomData?.location ?? ''
+    const allCantEat = Array.from(new Set(participants.flatMap((p: { cant_eat?: string[] }) => p.cant_eat ?? [])))
+    const allDontWant = Array.from(new Set(participants.flatMap((p: { dont_want?: string[] }) => p.dont_want ?? [])))
+    const key = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY
+
+    // 카테고리별 메뉴 검색 태스크 생성 (cant_eat + dont_want 모두 반영)
+    type SearchTask = { category: string; menu: string }
+    const tasks: SearchTask[] = []
+    for (const category of Object.keys(CATEGORY_MENUS)) {
+      const menus = pickMenus(category, allCantEat, allDontWant)
+      for (const menu of menus) {
+        tasks.push({ category, menu })
+      }
+    }
+
+    let isDummy = false
+    let menuResults: RestaurantItem[][]
+
+    if (key) {
+      // 메뉴별 병렬 검색 ("신촌 된장찌개", "신촌 제육볶음", ...)
+      menuResults = await Promise.all(
+        tasks.map(t =>
+          searchMenuRestaurants(key, locationText ? `${locationText} ${t.menu}` : t.menu)
+        )
+      )
+    } else {
+      isDummy = true
+      menuResults = tasks.map(t => DUMMY_BY_CATEGORY[t.category] ?? [])
+    }
+
+    // 결과를 CategoryRecommendation[] 형태로 조립
+    const categoryMap: Record<string, MenuRecommendation[]> = {}
+    tasks.forEach((task, i) => {
+      if (!categoryMap[task.category]) categoryMap[task.category] = []
+      categoryMap[task.category].push({ name: task.menu, restaurants: menuResults[i] })
+    })
+
+    const recommendations: CategoryRecommendation[] = Object.entries(categoryMap)
+      .map(([category, menus]) => ({
+        category,
+        menus,
+        matchCount: participants.filter((p: ParticipantRow) =>
+          !(p.dont_want ?? []).some((d: string) => (DISLIKE_TO_CATEGORY[d] ?? []).includes(category))
+        ).length,
+        totalCount: participants.length,
+      }))
+      .sort((a, b) =>
+        b.matchCount !== a.matchCount ? b.matchCount - a.matchCount :
+        b.menus.flatMap(m => m.restaurants).length - a.menus.flatMap(m => m.restaurants).length
+      )
+
+    const { error: uErr } = await supabase
+      .from('rooms').update({ recommendations, status: 'results' }).eq('code', room_code)
+    if (uErr) throw uErr
+
+    return NextResponse.json({ recommendations, isDummy })
+  } catch (e: unknown) {
+    console.error('Recommend error:', e)
+    await supabase.from('rooms').update({ status: 'waiting' }).eq('code', room_code)
+    return NextResponse.json({ error: '추천에 실패했습니다. 다시 시도해주세요.' }, { status: 500 })
+  }
+}
