@@ -625,17 +625,22 @@ function checkWalkAdvice(walkDirectSec, bikeTotalSec, walkDirectMin, origin, des
   var midLat  = (origin.lat + dest.lat) / 2;
   var midLng  = (origin.lng + dest.lng) / 2;
 
-  var content = '<div style="' +
-    'background:rgba(183,28,28,0.92);color:white;padding:10px 14px;' +
-    'border-radius:12px;font-size:0.85rem;font-weight:700;' +
-    'box-shadow:0 3px 10px rgba(0,0,0,0.3);text-align:center;max-width:200px;line-height:1.5">' +
-    '⚠️ 자전거 이용 시 ' + bikeMin + '분<br>' +
-    '도보 직접 이동 시 ' + walkDirectMin + '분<br>' +
-    '<span style="font-size:0.8rem;font-weight:400;opacity:0.9">걷거나 대중교통을 활용하세요</span>' +
-  '</div>';
+  var content =
+    '<div style="background:rgba(183,28,28,0.92);color:white;' +
+    'padding:8px 12px;border-radius:10px;white-space:nowrap;' +
+    'font-size:13px;font-weight:700;line-height:1.6;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,0.35);text-align:center;">' +
+    '⚠️ 자전거 ' + bikeMin + '분 vs 도보 ' + walkDirectMin + '분<br>' +
+    '<span style="font-size:11px;font-weight:400;">걷거나 대중교통을 활용하세요</span>' +
+    '</div>';
 
   walkAdviceOverlay = L.marker([midLat, midLng], {
-    icon: L.divIcon({ className: '', html: content, iconAnchor: [100, 30] }),
+    icon: L.divIcon({
+      className: '',
+      html: content,
+      iconSize: null,
+      iconAnchor: [0, 0]
+    }),
     zIndexOffset: 1000
   }).addTo(map);
   layers.push(walkAdviceOverlay);
