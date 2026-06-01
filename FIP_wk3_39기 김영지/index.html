@@ -256,7 +256,9 @@ function getRoute(mode, from, to) {
           location: [s.maneuver.location[1], s.maneuver.location[0]]
         };
       });
-      return { coords: coords, steps: steps, distance: route.distance, duration: route.duration };
+      // 자전거 구간은 시속 12km 기준으로 소요시간 재계산 (OSRM 기본값이 너무 빠름)
+      var duration = mode === 'bike' ? route.distance / (12000 / 3600) : route.duration;
+      return { coords: coords, steps: steps, distance: route.distance, duration: duration };
     });
 }
 
