@@ -152,8 +152,9 @@
 <script>
 const SEOUL_KEY = '445966474d796a64363655516c4f79';
 const BIKE_URL  = 'http://openapi.seoul.go.kr:8088/' + SEOUL_KEY + '/json/bikeList/1/1000/';
-const OSRM_FOOT = 'https://router.project-osrm.org/route/v1/foot/';
-const OSRM_BIKE = 'https://router.project-osrm.org/route/v1/bike/';
+const OSRM_FOOT  = 'https://router.project-osrm.org/route/v1/foot/';
+const GH_KEY     = '2f919344-460a-480c-938c-bc4d7287a7f6';
+const GH_URL     = 'https://graphhopper.com/api/1/route';
 
 var map = L.map('map').setView([37.5665, 126.9780], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -245,25 +246,49 @@ function geocode(address, inputEl) {
 
 // ── OSRM 경로 ──────────────────────────────────────────
 function getRoute(mode, from, to) {
-  var base = mode === 'bike' ? OSRM_BIKE : OSRM_FOOT;
-  var url = base + from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat +
-            '?steps=true&geometries=geojson&overview=full';
-  return fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      var route = d.routes[0];
-      var coords = route.geometry.coordinates.map(function(c){ return [c[1], c[0]]; });
-      var steps = route.legs[0].steps.map(function(s){
-        return {
-          instruction: translateManeuver(s.maneuver.type, s.maneuver.modifier, s.name),
-          distance: s.distance,
-          location: [s.maneuver.location[1], s.maneuver.location[0]]
-        };
+  if (mode === 'bike') {
+    // GraphHopper: 자전거 전용도로 우선 경로
+    var url = GH_URL + '?profile=bike' +
+      '&point=' + from.lat + ',' + from.lng +
+      '&point=' + to.lat   + ',' + to.lng +
+      '&locale=ko&instructions=true&calc_points=true&points_encoded=false' +
+      '&key=' + GH_KEY;
+    return fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var path   = d.paths[0];
+        var coords = path.points.coordinates.map(function(c){ return [c[1], c[0]]; });
+        var steps  = path.instructions.map(function(ins){
+          var pt = path.points.coordinates[ins.interval[0]];
+          return {
+            instruction: ins.text,
+            distance: ins.distance,
+            location: [pt[1], pt[0]]
+          };
+        });
+        // 시속 12km 기준 소요시간 재계산
+        var duration = path.distance / (12000 / 3600);
+        return { coords: coords, steps: steps, distance: path.distance, duration: duration };
       });
-      // 자전거 구간은 시속 12km 기준으로 소요시간 재계산 (OSRM 기본값이 너무 빠름)
-      var duration = mode === 'bike' ? route.distance / (12000 / 3600) : route.duration;
-      return { coords: coords, steps: steps, distance: route.distance, duration: duration };
-    });
+  } else {
+    // OSRM: 도보 경로
+    var url = OSRM_FOOT + from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat +
+              '?steps=true&geometries=geojson&overview=full';
+    return fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var route  = d.routes[0];
+        var coords = route.geometry.coordinates.map(function(c){ return [c[1], c[0]]; });
+        var steps  = route.legs[0].steps.map(function(s){
+          return {
+            instruction: translateManeuver(s.maneuver.type, s.maneuver.modifier, s.name),
+            distance: s.distance,
+            location: [s.maneuver.location[1], s.maneuver.location[0]]
+          };
+        });
+        return { coords: coords, steps: steps, distance: route.distance, duration: route.duration };
+      });
+  }
 }
 
 function translateManeuver(type, modifier, name) {
