@@ -199,46 +199,53 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// 최적 대여소 탐색:
-// - 반경 제한(1.5km → 없으면 3km → 없으면 전체)
-// - 목적지 방향 우선: score = 출발→대여소 + 대여소→목적지
-// - 방향 필터: 목적지보다 뒤쪽(출발지 반대) 대여소 제외
+var WALK_MPS = 5000  / 3600; // 5km/h → m/s
+var BIKE_MPS = 12000 / 3600; // 12km/h → m/s
+
+// 예상 소요시간: 도보로 대여소까지 + 자전거로 목적지까지
+function estimateTime(originLat, originLng, sLat, sLng, destLat, destLng) {
+  var walkTime = haversine(originLat, originLng, sLat, sLng) / WALK_MPS;
+  var bikeTime = haversine(sLat, sLng, destLat, destLng)     / BIKE_MPS;
+  return walkTime + bikeTime;
+}
+
+// 대여소 탐색:
+// ① 방향 최적 후보 (목적지 방향 우선, 뒤쪽 제외)
+// ② 최단 거리 후보 (단순 가장 가까운 곳)
+// → 둘 중 예상 총 소요시간이 적은 쪽 선택
 function nearestStation(lat, lng, stations, minBikes, destLat, destLng) {
   var filtered = stations.filter(function(s){
     return parseInt(s.parkingBikeTotCnt) >= minBikes;
   });
+  if (filtered.length === 0) return null;
 
   var destDist = (destLat !== undefined) ? haversine(lat, lng, destLat, destLng) : Infinity;
 
-  function score(s) {
+  var scored = filtered.map(function(s) {
     var sLat = parseFloat(s.stationLatitude);
     var sLng = parseFloat(s.stationLongitude);
-    var fromDist = haversine(lat, lng, sLat, sLng);
-    if (destLat === undefined) return { dist: fromDist, score: fromDist };
-    // 방향 벡터로 전진 여부 판단
-    var dx = destLng - lng, dy = destLat - lat;
-    var sx = sLng   - lng, sy = sLat   - lat;
-    var projection = (sx*dx + sy*dy) / (Math.sqrt(dx*dx+dy*dy) || 1);
-    // 출발지보다 목적지에서 더 멀면 (뒤쪽) 큰 패널티
-    var stationToDest = haversine(sLat, sLng, destLat, destLng);
-    var penalty = (stationToDest > destDist * 1.1) ? 99999 : 0;
-    return { dist: fromDist, score: fromDist + stationToDest + penalty };
-  }
+    var fromDist     = haversine(lat, lng, sLat, sLng);
+    var toDest       = (destLat !== undefined) ? haversine(sLat, sLng, destLat, destLng) : 0;
+    var isBackward   = destLat !== undefined && toDest > destDist * 1.1;
+    var estTime      = destLat !== undefined ? estimateTime(lat, lng, sLat, sLng, destLat, destLng) : fromDist;
+    return Object.assign({}, s, { dist: fromDist, toDest: toDest, isBackward: isBackward, estTime: estTime });
+  });
 
-  // 반경 1.5km → 3km → 전체 순으로 확장
-  var radii = [1500, 3000, Infinity];
-  for (var r = 0; r < radii.length; r++) {
-    var radius = radii[r];
-    var candidates = filtered
-      .map(function(s){
-        var sc = score(s);
-        return Object.assign({}, s, sc);
-      })
-      .filter(function(s){ return s.dist <= radius; })
-      .sort(function(a,b){ return a.score - b.score; });
-    if (candidates.length > 0) return candidates[0];
-  }
-  return null;
+  // ① 방향 최적 후보: 뒤쪽 아닌 것 중 예상 시간 최소
+  var forward = scored.filter(function(s){ return !s.isBackward; })
+                      .sort(function(a,b){ return a.estTime - b.estTime; });
+
+  // ② 최단 거리 후보: 단순 가장 가까운 것
+  var nearest = scored.slice().sort(function(a,b){ return a.dist - b.dist; });
+
+  var candidateA = forward.length > 0 ? forward[0]  : null;
+  var candidateB = nearest.length > 0 ? nearest[0]  : null;
+
+  if (!candidateA) return candidateB;
+  if (!candidateB) return candidateA;
+
+  // 예상 소요시간 기준으로 최종 선택
+  return candidateA.estTime <= candidateB.estTime ? candidateA : candidateB;
 }
 
 function bikeBadge(n) {
