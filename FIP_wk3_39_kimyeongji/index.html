@@ -199,11 +199,22 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-function nearestStation(lat, lng, stations, minBikes) {
+// 출발지(lat,lng)와 목적지(destLat,destLng)를 모두 고려해 최적 대여소 탐색
+// score = 출발지→대여소 거리 + 대여소→목적지 거리 (최소화 = 목적지 방향 우선)
+function nearestStation(lat, lng, stations, minBikes, destLat, destLng) {
   return stations
     .filter(function(s){ return parseInt(s.parkingBikeTotCnt) >= minBikes; })
-    .map(function(s){ return Object.assign({}, s, { dist: haversine(lat, lng, parseFloat(s.stationLatitude), parseFloat(s.stationLongitude)) }); })
-    .sort(function(a,b){ return a.dist - b.dist; })[0];
+    .map(function(s){
+      var sLat = parseFloat(s.stationLatitude);
+      var sLng = parseFloat(s.stationLongitude);
+      var fromDist = haversine(lat, lng, sLat, sLng);
+      // 목적지 좌표가 있으면 방향 고려, 없으면 거리만
+      var score = (destLat !== undefined)
+        ? fromDist + haversine(sLat, sLng, destLat, destLng)
+        : fromDist;
+      return Object.assign({}, s, { dist: fromDist, score: score });
+    })
+    .sort(function(a,b){ return a.score - b.score; })[0];
 }
 
 function bikeBadge(n) {
@@ -494,8 +505,10 @@ function searchRoute() {
   Promise.all([geocode(originText, originEl), geocode(destText, destEl), fetchBikeStations()])
     .then(function(res) {
       var origin   = res[0], dest = res[1], stations = res[2];
-      var rent = nearestStation(origin.lat, origin.lng, stations, 1);
-      var ret  = nearestStation(dest.lat,   dest.lng,   stations, 0);
+      // 대여소: 출발지 기준, 목적지 방향 우선
+      var rent = nearestStation(origin.lat, origin.lng, stations, 1, dest.lat, dest.lng);
+      // 반납소: 목적지 기준, 출발지 방향(역방향) 고려 불필요 → 목적지에서 가장 가까운 곳
+      var ret  = nearestStation(dest.lat, dest.lng, stations, 0);
 
       if (!rent) throw new Error('출발지 근처에 자전거가 있는 대여소가 없습니다.');
       if (!ret)  throw new Error('목적지 근처에 반납 가능한 대여소가 없습니다.');
