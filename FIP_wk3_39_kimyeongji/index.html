@@ -199,22 +199,46 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// 출발지(lat,lng)와 목적지(destLat,destLng)를 모두 고려해 최적 대여소 탐색
-// score = 출발지→대여소 거리 + 대여소→목적지 거리 (최소화 = 목적지 방향 우선)
+// 최적 대여소 탐색:
+// - 반경 제한(1.5km → 없으면 3km → 없으면 전체)
+// - 목적지 방향 우선: score = 출발→대여소 + 대여소→목적지
+// - 방향 필터: 목적지보다 뒤쪽(출발지 반대) 대여소 제외
 function nearestStation(lat, lng, stations, minBikes, destLat, destLng) {
-  return stations
-    .filter(function(s){ return parseInt(s.parkingBikeTotCnt) >= minBikes; })
-    .map(function(s){
-      var sLat = parseFloat(s.stationLatitude);
-      var sLng = parseFloat(s.stationLongitude);
-      var fromDist = haversine(lat, lng, sLat, sLng);
-      // 목적지 좌표가 있으면 방향 고려, 없으면 거리만
-      var score = (destLat !== undefined)
-        ? fromDist + haversine(sLat, sLng, destLat, destLng)
-        : fromDist;
-      return Object.assign({}, s, { dist: fromDist, score: score });
-    })
-    .sort(function(a,b){ return a.score - b.score; })[0];
+  var filtered = stations.filter(function(s){
+    return parseInt(s.parkingBikeTotCnt) >= minBikes;
+  });
+
+  var destDist = (destLat !== undefined) ? haversine(lat, lng, destLat, destLng) : Infinity;
+
+  function score(s) {
+    var sLat = parseFloat(s.stationLatitude);
+    var sLng = parseFloat(s.stationLongitude);
+    var fromDist = haversine(lat, lng, sLat, sLng);
+    if (destLat === undefined) return { dist: fromDist, score: fromDist };
+    // 방향 벡터로 전진 여부 판단
+    var dx = destLng - lng, dy = destLat - lat;
+    var sx = sLng   - lng, sy = sLat   - lat;
+    var projection = (sx*dx + sy*dy) / (Math.sqrt(dx*dx+dy*dy) || 1);
+    // 출발지보다 목적지에서 더 멀면 (뒤쪽) 큰 패널티
+    var stationToDest = haversine(sLat, sLng, destLat, destLng);
+    var penalty = (stationToDest > destDist * 1.1) ? 99999 : 0;
+    return { dist: fromDist, score: fromDist + stationToDest + penalty };
+  }
+
+  // 반경 1.5km → 3km → 전체 순으로 확장
+  var radii = [1500, 3000, Infinity];
+  for (var r = 0; r < radii.length; r++) {
+    var radius = radii[r];
+    var candidates = filtered
+      .map(function(s){
+        var sc = score(s);
+        return Object.assign({}, s, sc);
+      })
+      .filter(function(s){ return s.dist <= radius; })
+      .sort(function(a,b){ return a.score - b.score; });
+    if (candidates.length > 0) return candidates[0];
+  }
+  return null;
 }
 
 function bikeBadge(n) {
