@@ -542,17 +542,19 @@ function searchRoute() {
 
       setStatus('🔄 경로 계산 중...', 'loading');
 
-      // 도보 구간은 공통, 자전거 구간만 두 가지로 계산
+      // 도보 구간 공통 + 자전거 두 가지 + 직접 도보(비교용) 동시 계산
       return Promise.all([
         getRoute('foot',    origin,    rentCoord),
         getRoute('fastest', rentCoord, returnCoord),  // 최단 시간
         getRoute('bike',    rentCoord, returnCoord),  // 자전거 우선
-        getRoute('foot',    returnCoord, dest)
+        getRoute('foot',    returnCoord, dest),
+        getRoute('foot',    origin,    dest)           // 출발→목적지 직접 도보
       ]).then(function(results) {
-        var walkIn   = results[0];
-        var bikeFast = results[1];
-        var bikeLane = results[2];
-        var walkOut  = results[3];
+        var walkIn    = results[0];
+        var bikeFast  = results[1];
+        var bikeLane  = results[2];
+        var walkOut   = results[3];
+        var walkDirect = results[4]; // 직접 도보 시간
 
         // 두 경로 저장
         allRoutes.fastest = { phases: [walkIn, bikeFast, walkOut] };
@@ -586,11 +588,50 @@ function searchRoute() {
 
         // 선택된 경로 표시
         selectRoute(selectedRouteType);
+
+        // 직접 도보 vs 최선 자전거 경로 비교
+        var bestBikeTotal = Math.min(
+          walkIn.duration + bikeFast.duration + walkOut.duration,
+          walkIn.duration + bikeLane.duration + walkOut.duration
+        );
+        var walkDirectMin  = Math.round(walkDirect.duration / 60);
+        var bestBikeMin    = Math.round(bestBikeTotal / 60);
+        checkWalkAdvice(walkDirect.duration, bestBikeTotal, walkDirectMin, origin, dest);
+
         setStatus('✅ 경로 탐색 완료 · 교통정보 조회 중...', 'loading');
         checkTraffic(allRoutes[selectedRouteType].phases[1].coords, rentCoord, returnCoord);
       });
     })
     .catch(function(e) { setStatus(e.message || '오류가 발생했습니다.', 'error'); });
+}
+
+// ── 도보 vs 자전거 비교 경고 ──────────────────────────────
+var walkAdviceOverlay = null;
+
+function checkWalkAdvice(walkDirectSec, bikeTotalSec, walkDirectMin, origin, dest) {
+  // 기존 경고 제거
+  if (walkAdviceOverlay) { map.removeLayer(walkAdviceOverlay); walkAdviceOverlay = null; }
+
+  if (bikeTotalSec <= walkDirectSec) return; // 자전거가 더 빠르면 경고 없음
+
+  var bikeMin = Math.round(bikeTotalSec / 60);
+  var midLat  = (origin.lat + dest.lat) / 2;
+  var midLng  = (origin.lng + dest.lng) / 2;
+
+  var content = '<div style="' +
+    'background:rgba(183,28,28,0.92);color:white;padding:10px 14px;' +
+    'border-radius:12px;font-size:0.85rem;font-weight:700;' +
+    'box-shadow:0 3px 10px rgba(0,0,0,0.3);text-align:center;max-width:200px;line-height:1.5">' +
+    '⚠️ 자전거 이용 시 ' + bikeMin + '분<br>' +
+    '도보 직접 이동 시 ' + walkDirectMin + '분<br>' +
+    '<span style="font-size:0.8rem;font-weight:400;opacity:0.9">걷거나 대중교통을 활용하세요</span>' +
+  '</div>';
+
+  walkAdviceOverlay = L.marker([midLat, midLng], {
+    icon: L.divIcon({ className: '', html: content, iconAnchor: [100, 30] }),
+    zIndexOffset: 1000
+  }).addTo(map);
+  layers.push(walkAdviceOverlay);
 }
 
 // ── 실시간 교통정보 (TomTom) ──────────────────────────────
