@@ -199,7 +199,7 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-var WALK_MPS = 5000  / 3600; // 5km/h → m/s
+var WALK_MPS = 4500  / 3600; // 4.5km/h → m/s (신호·횡단보도 포함 현실 도보 속도)
 var BIKE_MPS = 12000 / 3600; // 12km/h → m/s
 
 // 예상 소요시간: 도보로 대여소까지 + 자전거로 목적지까지
@@ -366,7 +366,9 @@ function getRoute(mode, from, to) {
             location: [s.maneuver.location[1], s.maneuver.location[0]]
           };
         });
-        return { coords: coords, steps: steps, distance: route.distance, duration: route.duration };
+        // OSRM 도보 속도를 현실적인 4.5km/h 기준으로 재계산
+        var duration = route.distance / WALK_MPS;
+        return { coords: coords, steps: steps, distance: route.distance, duration: duration };
       });
   }
 }
