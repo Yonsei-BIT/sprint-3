@@ -155,6 +155,9 @@ const BIKE_URL  = 'http://openapi.seoul.go.kr:8088/' + SEOUL_KEY + '/json/bikeLi
 const OSRM_FOOT  = 'https://router.project-osrm.org/route/v1/foot/';
 const GH_KEY     = '2f919344-460a-480c-938c-bc4d7287a7f6';
 const GH_URL     = 'https://graphhopper.com/api/1/route';
+const TT_KEY     = 'yidwUihKMUOLdS4U5MRWwBu1V5wSUGxM';
+const TT_FLOW    = 'https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json';
+const TT_INC     = 'https://api.tomtom.com/traffic/services/5/incidentDetails';
 
 var map = L.map('map').setView([37.5665, 126.9780], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -461,10 +464,84 @@ function searchRoute() {
         showTab(0);
         document.getElementById('info-panel').classList.add('visible');
         document.getElementById('nav-start-btn').style.display = 'block';
-        setStatus('✅ 경로 탐색 완료', 'ok');
+        setStatus('✅ 경로 탐색 완료 · 교통정보 조회 중...', 'loading');
+
+        // 실시간 교통정보 조회 (자전거 구간 샘플 포인트)
+        checkTraffic(routes[1].coords, rentCoord, returnCoord);
       });
     })
     .catch(function(e) { setStatus(e.message || '오류가 발생했습니다.', 'error'); });
+}
+
+// ── 실시간 교통정보 (TomTom) ──────────────────────────────
+function checkTraffic(bikeCoords, from, to) {
+  // 경로에서 균등하게 5개 포인트 샘플링
+  var samples = [];
+  var step = Math.floor(bikeCoords.length / 5) || 1;
+  for (var i = 0; i < bikeCoords.length; i += step) {
+    if (samples.length < 5) samples.push(bikeCoords[i]);
+  }
+
+  // 각 포인트 혼잡도 조회
+  var requests = samples.map(function(pt) {
+    var url = TT_FLOW + '?point=' + pt[0] + ',' + pt[1] + '&key=' + TT_KEY;
+    return fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.flowSegmentData) return null;
+        var cur  = d.flowSegmentData.currentSpeed;
+        var free = d.flowSegmentData.freeFlowSpeed;
+        return free > 0 ? cur / free : 1;
+      })
+      .catch(function() { return null; });
+  });
+
+  // 사고/돌발 조회
+  var minLat = Math.min(from.lat, to.lat) - 0.01;
+  var maxLat = Math.max(from.lat, to.lat) + 0.01;
+  var minLng = Math.min(from.lng, to.lng) - 0.01;
+  var maxLng = Math.max(from.lng, to.lng) + 0.01;
+  var incUrl = TT_INC + '?bbox=' + minLng + ',' + minLat + ',' + maxLng + ',' + maxLat +
+    '&fields={incidents{type,geometry{type,coordinates},properties{iconCategory,startTime,endTime,from,to,length,delay,roadNumbers,timeValidity}}}&language=ko-KR&key=' + TT_KEY;
+  var incReq = fetch(incUrl)
+    .then(function(r) { return r.json(); })
+    .catch(function() { return null; });
+
+  Promise.all([Promise.all(requests), incReq]).then(function(results) {
+    var ratios    = results[0].filter(function(r) { return r !== null; });
+    var incData   = results[1];
+    var avgRatio  = ratios.length ? ratios.reduce(function(a,b){return a+b;},0) / ratios.length : 1;
+
+    // 혼잡도 등급
+    var level, color, emoji;
+    if (avgRatio >= 0.8)      { level = '원활'; color = '#2e7d32'; emoji = '🟢'; }
+    else if (avgRatio >= 0.5) { level = '보통'; color = '#f57f17'; emoji = '🟡'; }
+    else                       { level = '혼잡'; color = '#c62828'; emoji = '🔴'; }
+
+    // 사고 건수
+    var incidents = (incData && incData.incidents) ? incData.incidents : [];
+    var incText = incidents.length > 0
+      ? ' · ⚠️ 주변 돌발상황 ' + incidents.length + '건'
+      : '';
+
+    // 혼잡도 표시 바 업데이트
+    var bar = document.getElementById('total-time-bar');
+    var trafficDiv = document.getElementById('traffic-info');
+    if (!trafficDiv) {
+      trafficDiv = document.createElement('div');
+      trafficDiv.id = 'traffic-info';
+      trafficDiv.style.cssText = 'margin-top:6px;font-size:0.85rem;font-weight:600;';
+      bar.appendChild(trafficDiv);
+    }
+    trafficDiv.innerHTML = emoji + ' 자전거 구간 교통 <span style="color:' + color + '">' + level + '</span>' + incText;
+
+    // 혼잡 시 경로선 색 변경
+    if (avgRatio < 0.5) {
+      setStatus('⚠️ 자전거 구간 혼잡 — 주의하세요', 'error');
+    } else {
+      setStatus('✅ 경로 탐색 완료', 'ok');
+    }
+  });
 }
 
 // ── 네비게이션 ─────────────────────────────────────────
