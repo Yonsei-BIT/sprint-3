@@ -136,6 +136,10 @@
 <button id="nav-stop-btn" onclick="stopNavigation()">■ 네비게이션 종료</button>
 
 <div id="info-panel">
+  <div id="total-time-bar" style="background:#1565c0;color:white;padding:10px 16px;font-size:0.9rem;font-weight:700;display:none;">
+    ⏱ 총 예상 시간: <span id="total-time-value"></span>
+    <span style="font-weight:400;font-size:0.8rem;margin-left:8px;" id="total-time-detail"></span>
+  </div>
   <div class="phase-tabs">
     <div class="phase-tab active" onclick="showTab(0)">① 🚶 출발→대여</div>
     <div class="phase-tab" onclick="showTab(1)">② 🚲 대여→반납</div>
@@ -386,6 +390,17 @@ function searchRoute() {
           bikeLabel: true, bikeDist: routes[1].distance, bikeTime: routes[1].duration };
         tabData[2] = { icon: '🔴', stationName: '목적지', bikes: 0,
           fromLabel: ret.stationName, walkDist: routes[2].distance, walkTime: routes[2].duration };
+
+        // 총 소요시간 계산
+        var totalSec = routes[0].duration + routes[1].duration + routes[2].duration;
+        var walk1Min = Math.round(routes[0].duration / 60);
+        var bikeMin  = Math.round(routes[1].duration / 60);
+        var walk2Min = Math.round(routes[2].duration / 60);
+        var totalMin = Math.round(totalSec / 60);
+        document.getElementById('total-time-value').textContent = totalMin + '분';
+        document.getElementById('total-time-detail').textContent =
+          '(도보 ' + walk1Min + '분 + 자전거 ' + bikeMin + '분 + 도보 ' + walk2Min + '분)';
+        document.getElementById('total-time-bar').style.display = 'block';
 
         showTab(0);
         document.getElementById('info-panel').classList.add('visible');
