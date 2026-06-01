@@ -309,6 +309,29 @@ function drawRoute(coords, color, dash) {
   layers.push(line);
 }
 
+// ── 따릉이 앱 딥링크 ───────────────────────────────────
+function openBikeApp(action) {
+  // 앱 실행 시도 (설치된 경우), 실패 시 웹으로 fallback
+  var appUrl = 'bikeseoul://' + action;
+  var webUrl = 'https://www.bikeseoul.com';
+  var iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = appUrl;
+  document.body.appendChild(iframe);
+  setTimeout(function() {
+    document.body.removeChild(iframe);
+    window.open(webUrl, '_blank');
+  }, 1500);
+}
+
+function appBtn(label, action, color) {
+  return '<button onclick="openBikeApp(\'' + action + '\')" style="' +
+    'margin-top:10px;width:100%;padding:10px;background:' + color + ';color:white;' +
+    'border:none;border-radius:8px;font-size:0.9rem;font-weight:700;cursor:pointer;">' +
+    label +
+  '</button>';
+}
+
 // ── 탭 ────────────────────────────────────────────────
 function showTab(idx) {
   currentTab = idx;
@@ -317,8 +340,16 @@ function showTab(idx) {
   if (!d.stationName) return;
   var html = '<div class="station-card">' +
     '<div class="name">' + d.icon + ' ' + d.stationName + ' ' + bikeBadge(d.bikes) + '</div>' +
-    '<div class="detail">' + d.fromLabel + '에서 약 ' + fmtDist(d.walkDist) + ' 도보 · ' + fmtTime(d.walkTime) + '</div>' +
-    '</div>';
+    '<div class="detail">' + d.fromLabel + '에서 약 ' + fmtDist(d.walkDist) + ' 도보 · ' + fmtTime(d.walkTime) + '</div>';
+
+  // 탭별 따릉이 앱 버튼
+  if (idx === 0) {
+    html += appBtn('🚲 따릉이 앱에서 대여하기', 'rent', '#2e7d32');
+  } else if (idx === 2) {
+    html += appBtn('🔒 따릉이 앱에서 반납하기', 'return', '#e65100');
+  }
+  html += '</div>';
+
   if (d.bikeLabel) {
     html += '<div class="station-card"><div class="name">🚲 자전거 구간</div>' +
       '<div class="detail">거리 ' + fmtDist(d.bikeDist) + ' · 예상 ' + fmtTime(d.bikeTime) + '</div></div>';
