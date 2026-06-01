@@ -209,43 +209,46 @@ function estimateTime(originLat, originLng, sLat, sLng, destLat, destLng) {
   return walkTime + bikeTime;
 }
 
-// 대여소 탐색:
-// ① 방향 최적 후보 (목적지 방향 우선, 뒤쪽 제외)
-// ② 최단 거리 후보 (단순 가장 가까운 곳)
-// → 둘 중 예상 총 소요시간이 적은 쪽 선택
+// 대여소 탐색 (실제 라우팅 기반):
+// 1) 직선거리 기준 상위 8개 후보 추출
+// 2) 각 후보에 대해 실제 OSRM 도보 경로로 소요시간 검증
+// 3) 실제 총 시간(도보→대여소 + 대여소→목적지 직선추정)이 가장 짧은 대여소 선택
 function nearestStation(lat, lng, stations, minBikes, destLat, destLng) {
   var filtered = stations.filter(function(s){
     return parseInt(s.parkingBikeTotCnt) >= minBikes;
   });
-  if (filtered.length === 0) return null;
+  if (filtered.length === 0) return Promise.resolve(null);
 
-  var destDist = (destLat !== undefined) ? haversine(lat, lng, destLat, destLng) : Infinity;
-
-  var scored = filtered.map(function(s) {
+  // 직선거리로 1차 정렬 후 상위 8개만 실제 라우팅
+  var candidates = filtered.map(function(s) {
     var sLat = parseFloat(s.stationLatitude);
     var sLng = parseFloat(s.stationLongitude);
-    var fromDist     = haversine(lat, lng, sLat, sLng);
-    var toDest       = (destLat !== undefined) ? haversine(sLat, sLng, destLat, destLng) : 0;
-    var isBackward   = destLat !== undefined && toDest > destDist * 1.1;
-    var estTime      = destLat !== undefined ? estimateTime(lat, lng, sLat, sLng, destLat, destLng) : fromDist;
-    return Object.assign({}, s, { dist: fromDist, toDest: toDest, isBackward: isBackward, estTime: estTime });
+    var fromDist = haversine(lat, lng, sLat, sLng);
+    var toDest   = (destLat !== undefined) ? haversine(sLat, sLng, destLat, destLng) : 0;
+    var estTime  = destLat !== undefined ? estimateTime(lat, lng, sLat, sLng, destLat, destLng) : fromDist;
+    return Object.assign({}, s, { dist: fromDist, toDest: toDest, estTime: estTime });
+  }).sort(function(a,b){ return a.estTime - b.estTime; }).slice(0, 8);
+
+  // 각 후보의 실제 도보 소요시간을 OSRM으로 검증
+  var origin = { lat: lat, lng: lng };
+  return Promise.all(candidates.map(function(s) {
+    var sLat = parseFloat(s.stationLatitude);
+    var sLng = parseFloat(s.stationLongitude);
+    var sCoord = { lat: sLat, lng: sLng };
+    return getRoute('foot', origin, sCoord)
+      .then(function(r) {
+        // 실제 도보 시간 + 목적지까지 자전거 직선 추정
+        var realWalkTime = r.duration;
+        var bikeToDest   = (destLat !== undefined) ? haversine(sLat, sLng, destLat, destLng) / BIKE_MPS : 0;
+        return Object.assign({}, s, { realTotalTime: realWalkTime + bikeToDest });
+      })
+      .catch(function() {
+        return Object.assign({}, s, { realTotalTime: s.estTime }); // API 실패 시 직선 추정값 사용
+      });
+  })).then(function(verified) {
+    verified.sort(function(a,b){ return a.realTotalTime - b.realTotalTime; });
+    return verified[0];
   });
-
-  // ① 방향 최적 후보: 뒤쪽 아닌 것 중 예상 시간 최소
-  var forward = scored.filter(function(s){ return !s.isBackward; })
-                      .sort(function(a,b){ return a.estTime - b.estTime; });
-
-  // ② 최단 거리 후보: 단순 가장 가까운 것
-  var nearest = scored.slice().sort(function(a,b){ return a.dist - b.dist; });
-
-  var candidateA = forward.length > 0 ? forward[0]  : null;
-  var candidateB = nearest.length > 0 ? nearest[0]  : null;
-
-  if (!candidateA) return candidateB;
-  if (!candidateB) return candidateA;
-
-  // 예상 소요시간 기준으로 최종 선택
-  return candidateA.estTime <= candidateB.estTime ? candidateA : candidateB;
 }
 
 function bikeBadge(n) {
@@ -538,18 +541,21 @@ function searchRoute() {
   Promise.all([geocode(originText, originEl), geocode(destText, destEl), fetchBikeStations()])
     .then(function(res) {
       var origin   = res[0], dest = res[1], stations = res[2];
-      // 대여소: 출발지 기준, 목적지 방향 우선
-      var rent = nearestStation(origin.lat, origin.lng, stations, 1, dest.lat, dest.lng);
-      // 반납소: 목적지 기준, 출발지 방향(역방향) 고려 불필요 → 목적지에서 가장 가까운 곳
-      var ret  = nearestStation(dest.lat, dest.lng, stations, 0);
+      setStatus('🔄 최적 대여소 탐색 중... (실제 경로 검증)', 'loading');
+      // 대여소/반납소 모두 실제 라우팅으로 검증 (Promise 반환)
+      return Promise.all([
+        nearestStation(origin.lat, origin.lng, stations, 1, dest.lat, dest.lng),
+        nearestStation(dest.lat,   dest.lng,   stations, 0)
+      ]).then(function(stRes) {
+        var rent = stRes[0], ret = stRes[1];
 
-      if (!rent) throw new Error('출발지 근처에 자전거가 있는 대여소가 없습니다.');
-      if (!ret)  throw new Error('목적지 근처에 반납 가능한 대여소가 없습니다.');
+        if (!rent) throw new Error('출발지 근처에 자전거가 있는 대여소가 없습니다.');
+        if (!ret)  throw new Error('목적지 근처에 반납 가능한 대여소가 없습니다.');
 
-      var rentCoord   = { lat: parseFloat(rent.stationLatitude),  lng: parseFloat(rent.stationLongitude) };
-      var returnCoord = { lat: parseFloat(ret.stationLatitude),   lng: parseFloat(ret.stationLongitude) };
+        var rentCoord   = { lat: parseFloat(rent.stationLatitude),  lng: parseFloat(rent.stationLongitude) };
+        var returnCoord = { lat: parseFloat(ret.stationLatitude),   lng: parseFloat(ret.stationLongitude) };
 
-      setStatus('🔄 경로 계산 중...', 'loading');
+        setStatus('🔄 경로 계산 중...', 'loading');
 
       // 도보 구간 공통 + 자전거 두 가지 + 직접 도보(비교용) 동시 계산
       return Promise.all([
@@ -610,6 +616,7 @@ function searchRoute() {
         setStatus('✅ 경로 탐색 완료 · 교통정보 조회 중...', 'loading');
         checkTraffic(allRoutes[selectedRouteType].phases[1].coords, rentCoord, returnCoord);
       });
+      }); // stRes (nearestStation 검증 완료)
     })
     .catch(function(e) { setStatus(e.message || '오류가 발생했습니다.', 'error'); });
 }
