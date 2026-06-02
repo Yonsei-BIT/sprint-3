@@ -365,8 +365,11 @@ function getRoute(mode, from, to) {
           });
           distance = route.distance;
         }
-        // 시속 12km 기준 소요시간 재계산
-        var duration = distance / (12000 / 3600);
+        // 최단 시간 모드: OSRM이 도로별 속도를 반영해 계산한 실제 시간 사용
+        // (자전거 도로 우선은 거리 기반 고정속도 유지)
+        var duration = mode === 'fastest'
+          ? d.routes[0].duration          // OSRM 실제 계산 시간
+          : distance / (12000 / 3600);    // GraphHopper: 거리 ÷ 12km/h
         return { coords: coords, steps: steps, distance: distance, duration: duration };
       });
   } else {
