@@ -336,15 +336,15 @@ function getRoute(mode, from, to) {
         '&locale=ko&instructions=true&calc_points=true&points_encoded=false' +
         '&key=' + GH_KEY;
     } else {
-      // OSRM: 최단 시간 (일반 도로 기준)
+      // OSRM: 최단 시간 — annotations=speed,distance 로 구간별 속도 수집
       url = 'https://router.project-osrm.org/route/v1/bike/' +
         from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat +
-        '?steps=true&geometries=geojson&overview=full';
+        '?steps=true&geometries=geojson&overview=full&annotations=speed,distance';
     }
     return fetch(url)
       .then(function(r){ return r.json(); })
       .then(function(d){
-        var coords, steps, distance;
+        var coords, steps, distance, duration;
         if (mode === 'bike') {
           var path = d.paths[0];
           coords = path.points.coordinates.map(function(c){ return [c[1], c[0]]; });
@@ -353,6 +353,8 @@ function getRoute(mode, from, to) {
             return { instruction: ins.text, distance: ins.distance, location: [pt[1], pt[0]] };
           });
           distance = path.distance;
+          // 자전거 도로 우선: 거리 ÷ 12km/h 일괄 적용
+          duration = distance / (12000 / 3600);
         } else {
           var route = d.routes[0];
           coords = route.geometry.coordinates.map(function(c){ return [c[1], c[0]]; });
@@ -364,10 +366,24 @@ function getRoute(mode, from, to) {
             };
           });
           distance = route.distance;
+          // 최단 시간: 구간별 도로 타입 추정 → 자전거 현실 속도로 소요시간 계산
+          var ann = route.legs[0].annotation;
+          if (ann && ann.speed && ann.distance) {
+            duration = 0;
+            for (var i = 0; i < ann.distance.length; i++) {
+              var segDist   = ann.distance[i];          // 미터
+              var roadKmh   = (ann.speed[i] || 0) * 3.6; // m/s → km/h
+              // OSRM 보고 속도로 도로 타입 추정 → 자전거 속도 배정
+              var bikeKmh;
+              if (roadKmh > 40)      bikeKmh = 12; // primary (간선도로)
+              else if (roadKmh > 20) bikeKmh = 14; // secondary / tertiary
+              else                   bikeKmh = 15; // residential / cycleway / path
+              duration += segDist / (bikeKmh / 3.6);
+            }
+          } else {
+            duration = distance / (12000 / 3600); // annotation 없으면 일괄 적용
+          }
         }
-        // 경로는 OSRM/GraphHopper의 최적 알고리즘으로 선택,
-        // 소요시간은 현실 자전거 속도 12km/h 기준으로 재계산
-        var duration = distance / (12000 / 3600);
         return { coords: coords, steps: steps, distance: distance, duration: duration };
       });
   } else {
