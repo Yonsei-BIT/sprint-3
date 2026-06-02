@@ -214,61 +214,56 @@ function estimateTime(originLat, originLng, sLat, sLng, destLat, destLng) {
   return walkTime + bikeTime;
 }
 
-// ── 최적 대여소+반납소 조합 탐색 ─────────────────────────
-// 전략: 대여 후보 5개 × 반납 후보 5개 = 25 조합
-// 각 후보의 실제 도보 시간을 OSRM으로 검증 후
-// 총 시간 = 도보(출발→대여) + 자전거(대여→반납, 직선추정) + 도보(반납→목적지) 최소 조합 선택
+// ── 최적 대여소+반납소 탐색 ──────────────────────────────
+// 대여소: 출발지에서 실제 도보 시간이 가장 짧은 곳
+// 반납소: 목적지까지 실제 도보 시간이 가장 짧은 곳
+// → 둘은 독립적으로 선택 (혼합 점수 금지 — 대여소 옆에 반납소가 몰리는 문제 방지)
 function findBestStations(origin, dest, stations) {
   var withBike = stations.filter(function(s){ return parseInt(s.parkingBikeTotCnt) >= 1; });
-  var all      = stations; // 반납은 빈 자리만 있으면 됨 (parkingBikeTotCnt 무관)
-
   if (withBike.length === 0) return Promise.reject(new Error('출발지 근처에 자전거가 있는 대여소가 없습니다.'));
-  if (all.length === 0)      return Promise.reject(new Error('목적지 근처에 반납 가능한 대여소가 없습니다.'));
+  if (stations.length === 0) return Promise.reject(new Error('목적지 근처에 반납 가능한 대여소가 없습니다.'));
 
-  // 직선거리로 1차 필터: 대여 후보 5개, 반납 후보 5개
+  // 직선거리 기준 1차 후보 추출 (각 8개)
   var rentCands = withBike.map(function(s) {
     var sLat = parseFloat(s.stationLatitude), sLng = parseFloat(s.stationLongitude);
     return Object.assign({}, s, { _dist: haversine(origin.lat, origin.lng, sLat, sLng) });
-  }).sort(function(a,b){ return a._dist - b._dist; }).slice(0, 5);
+  }).sort(function(a,b){ return a._dist - b._dist; }).slice(0, 8);
 
-  var retCands = all.map(function(s) {
+  var retCands = stations.map(function(s) {
     var sLat = parseFloat(s.stationLatitude), sLng = parseFloat(s.stationLongitude);
     return Object.assign({}, s, { _dist: haversine(dest.lat, dest.lng, sLat, sLng) });
-  }).sort(function(a,b){ return a._dist - b._dist; }).slice(0, 5);
+  }).sort(function(a,b){ return a._dist - b._dist; }).slice(0, 8);
 
-  // 실제 도보 시간 10건 병렬 요청 (출발→대여 5건, 반납→목적지 5건)
-  var rentWalkPromises = rentCands.map(function(s) {
+  // 실제 도보 시간 병렬 요청: 출발→대여 8건 + 반납→목적지 8건
+  var rentWalkP = rentCands.map(function(s) {
     var coord = { lat: parseFloat(s.stationLatitude), lng: parseFloat(s.stationLongitude) };
     return getRoute('foot', origin, coord)
       .then(function(r){ return r.duration; })
-      .catch(function(){ return s._dist / WALK_MPS; }); // 실패 시 직선 추정
+      .catch(function(){ return s._dist / WALK_MPS; });
   });
-  var retWalkPromises = retCands.map(function(s) {
+  var retWalkP = retCands.map(function(s) {
     var coord = { lat: parseFloat(s.stationLatitude), lng: parseFloat(s.stationLongitude) };
     return getRoute('foot', coord, dest)
       .then(function(r){ return r.duration; })
       .catch(function(){ return s._dist / WALK_MPS; });
   });
 
-  return Promise.all(rentWalkPromises.concat(retWalkPromises)).then(function(times) {
-    var rentWalkTimes = times.slice(0, 5);
-    var retWalkTimes  = times.slice(5, 10);
+  return Promise.all(rentWalkP.concat(retWalkP)).then(function(times) {
+    var rentTimes = times.slice(0, 8);
+    var retTimes  = times.slice(8, 16);
 
-    // 25개 조합 중 총 시간 최소 조합 선택
-    var best = null, bestTime = Infinity;
-    for (var i = 0; i < rentCands.length; i++) {
-      for (var j = 0; j < retCands.length; j++) {
-        var rLat = parseFloat(rentCands[i].stationLatitude), rLng = parseFloat(rentCands[i].stationLongitude);
-        var eLat = parseFloat(retCands[j].stationLatitude),  eLng = parseFloat(retCands[j].stationLongitude);
-        var bikeEst = haversine(rLat, rLng, eLat, eLng) / BIKE_MPS;
-        var total   = rentWalkTimes[i] + bikeEst + retWalkTimes[j];
-        if (total < bestTime) {
-          bestTime = total;
-          best = { rent: rentCands[i], ret: retCands[j] };
-        }
-      }
+    // 대여소: 출발지 도보 시간 최소
+    var bestRentIdx = 0;
+    for (var i = 1; i < rentCands.length; i++) {
+      if (rentTimes[i] < rentTimes[bestRentIdx]) bestRentIdx = i;
     }
-    return best;
+    // 반납소: 목적지 도보 시간 최소
+    var bestRetIdx = 0;
+    for (var j = 1; j < retCands.length; j++) {
+      if (retTimes[j] < retTimes[bestRetIdx]) bestRetIdx = j;
+    }
+
+    return { rent: rentCands[bestRentIdx], ret: retCands[bestRetIdx] };
   });
 }
 
