@@ -150,6 +150,11 @@
       </button>
     </div>
   </div>
+  <!-- 도보/대중교통 권장 경고 -->
+  <div id="walk-advice" style="display:none;background:#fff3cd;border-left:4px solid #e65100;
+    padding:10px 16px;font-size:0.83rem;color:#7f3b00;font-weight:600;line-height:1.5;">
+    <span id="walk-advice-text"></span>
+  </div>
   <div id="total-time-bar" style="background:#1565c0;color:white;padding:10px 16px;font-size:0.9rem;font-weight:700;display:none;">
     ⏱ 총 예상 시간: <span id="total-time-value"></span>
     <span style="font-weight:400;font-size:0.8rem;margin-left:8px;" id="total-time-detail"></span>
@@ -551,6 +556,7 @@ function searchRoute() {
 
   setStatus('🔄 경로 탐색 중...', 'loading');
   clearMap();
+  document.getElementById('walk-advice').style.display = 'none';
   document.getElementById('info-panel').classList.remove('visible');
   document.getElementById('nav-start-btn').style.display = 'none';
 
@@ -632,37 +638,16 @@ function searchRoute() {
 }
 
 // ── 도보 vs 자전거 비교 경고 ──────────────────────────────
-var walkAdviceOverlay = null;
-
 function checkWalkAdvice(walkDirectSec, bikeTotalSec, walkDirectMin, origin, dest) {
-  // 기존 경고 제거
-  if (walkAdviceOverlay) { map.removeLayer(walkAdviceOverlay); walkAdviceOverlay = null; }
-
-  if (bikeTotalSec <= walkDirectSec) return; // 자전거가 더 빠르면 경고 없음
-
+  var el = document.getElementById('walk-advice');
+  var tx = document.getElementById('walk-advice-text');
+  if (bikeTotalSec <= walkDirectSec) {
+    el.style.display = 'none'; // 자전거가 더 빠르면 숨김
+    return;
+  }
   var bikeMin = Math.round(bikeTotalSec / 60);
-  var midLat  = (origin.lat + dest.lat) / 2;
-  var midLng  = (origin.lng + dest.lng) / 2;
-
-  var content =
-    '<div style="background:rgba(183,28,28,0.92);color:white;' +
-    'padding:8px 12px;border-radius:10px;white-space:nowrap;' +
-    'font-size:13px;font-weight:700;line-height:1.6;' +
-    'box-shadow:0 2px 8px rgba(0,0,0,0.35);text-align:center;">' +
-    '⚠️ 자전거 ' + bikeMin + '분 vs 도보 ' + walkDirectMin + '분<br>' +
-    '<span style="font-size:11px;font-weight:400;">걷거나 대중교통을 활용하세요</span>' +
-    '</div>';
-
-  walkAdviceOverlay = L.marker([midLat, midLng], {
-    icon: L.divIcon({
-      className: '',
-      html: content,
-      iconSize: null,
-      iconAnchor: [0, 0]
-    }),
-    zIndexOffset: 1000
-  }).addTo(map);
-  layers.push(walkAdviceOverlay);
+  tx.textContent = '⚠️ 자전거 ' + bikeMin + '분 vs 도보 ' + walkDirectMin + '분 — 걷거나 대중교통을 활용하세요';
+  el.style.display = 'block';
 }
 
 // ── 실시간 교통정보 (TomTom) ──────────────────────────────
