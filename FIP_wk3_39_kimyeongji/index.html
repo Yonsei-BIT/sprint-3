@@ -142,7 +142,7 @@
     <div style="display:flex;gap:8px;">
       <button id="btn-fastest" onclick="selectRoute('fastest')"
         style="flex:1;padding:8px;border-radius:8px;border:2px solid #00adef;background:#00adef;color:white;font-weight:700;font-size:0.83rem;cursor:pointer;">
-        ⚡ 최단 시간<br><span id="fastest-time" style="font-size:0.75rem;font-weight:400;"></span>
+        ⚡ 일반 도로<br><span id="fastest-time" style="font-size:0.75rem;font-weight:400;"></span>
       </button>
       <button id="btn-bike" onclick="selectRoute('bike')"
         style="flex:1;padding:8px;border-radius:8px;border:2px solid #ccc;background:white;color:#333;font-weight:700;font-size:0.83rem;cursor:pointer;">
@@ -586,14 +586,19 @@ function searchRoute() {
         allRoutes.fastest = { phases: [walkIn, bikeFast, walkOut] };
         allRoutes.bike    = { phases: [walkIn, bikeLane, walkOut] };
 
-        // 기본 선택: 더 빠른 쪽
-        selectedRouteType = bikeFast.duration <= bikeLane.duration ? 'fastest' : 'bike';
+        // 총 소요시간 계산
+        var fastTotal = walkIn.duration + bikeFast.duration + walkOut.duration;
+        var bikeTotal = walkIn.duration + bikeLane.duration + walkOut.duration;
+        var fastMin   = Math.round(fastTotal / 60);
+        var bikeMin   = Math.round(bikeTotal / 60);
 
-        // 경로 선택 버튼 시간 표시
-        var fastTotal = Math.round((walkIn.duration + bikeFast.duration + walkOut.duration) / 60);
-        var bikeTotal = Math.round((walkIn.duration + bikeLane.duration + walkOut.duration) / 60);
-        document.getElementById('fastest-time').textContent = fastTotal + '분';
-        document.getElementById('bike-time').textContent    = bikeTotal + '분';
+        // 기본 선택: 더 빠른 쪽
+        selectedRouteType = fastTotal <= bikeTotal ? 'fastest' : 'bike';
+
+        // 버튼 시간 표시 + 더 빠른 쪽에 뱃지
+        var fasterBadge = ' <span style="font-size:0.7rem;background:#fff3;border-radius:4px;padding:1px 4px;">⚡더 빠름</span>';
+        document.getElementById('fastest-time').innerHTML = fastMin + '분' + (fastTotal <= bikeTotal ? fasterBadge : '');
+        document.getElementById('bike-time').innerHTML    = bikeMin + '분' + (bikeTotal < fastTotal  ? fasterBadge : '');
         document.getElementById('route-select').style.display = 'block';
 
         // 공통 정보
