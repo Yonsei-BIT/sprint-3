@@ -718,19 +718,29 @@ function searchRoute() {
                 var transitMin = Math.round(
                   (transitResult.totalSec - combo.saved) / 60
                 );
-                var badge = combo.saved > 30
-                  ? ' <span style="font-size:0.68rem;background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 4px;">🚲따릉이 조합</span>'
+                var badge = combo.type === 'transit+bike'
+                  ? ' <span style="font-size:0.68rem;background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 4px;">🚲조합</span>'
                   : '';
                 document.getElementById('transit-time').innerHTML = transitMin + '분' + badge;
 
-                // 대중교통이 모든 경로 중 가장 빠르면 자동 선택
-                var bikeMin = Math.min(fastTotal, bikeTotal) / 60;
-                if (transitMin < bikeMin) {
-                  selectedRouteType = 'transit';
-                  selectRoute('transit');
-                  // 버튼 스타일 갱신
-                  updateRouteButtons('transit');
-                }
+                // 3가지 모두 표시된 상태에서 가장 빠른 것 자동 선택
+                var fastMin  = Math.round(fastTotal / 60);
+                var bikeMin2 = Math.round(bikeTotal / 60);
+                var bestMin  = Math.min(fastMin, bikeMin2, transitMin);
+                var bestType = bestMin === transitMin ? 'transit'
+                             : bestMin === fastMin    ? 'fastest' : 'bike';
+
+                // 빠름 뱃지 업데이트
+                var fasterBadge = ' <span style="font-size:0.7rem;background:#fff3;border-radius:4px;padding:1px 4px;">⚡더 빠름</span>';
+                document.getElementById('fastest-time').innerHTML =
+                  fastMin + '분' + (bestType === 'fastest' ? fasterBadge : '');
+                document.getElementById('bike-time').innerHTML =
+                  bikeMin2 + '분' + (bestType === 'bike' ? fasterBadge : '');
+                document.getElementById('transit-time').innerHTML =
+                  transitMin + '분' + badge + (bestType === 'transit' ? fasterBadge : '');
+
+                selectedRouteType = bestType;
+                selectRoute(bestType);
               });
           })
           .catch(function() {
@@ -808,29 +818,19 @@ function fetchTransitRoute(origin, dest) {
 
 // 따릉이로 대체 시 시간 절약 여부 확인 후 최적 조합 반환
 function buildTransitBikeCombo(transitResult, origin, dest, stations) {
-  var WALK_REPLACE_THRESHOLD = 5 * 60; // 5분 이상 도보면 따릉이 검토
-  var tasks = [];
+  var THRESHOLD  = 10 * 60; // 10분 이상 도보/대기면 따릉이 검토
+  var MIN_SAVING = 60;      // 1분 이상 절약될 때만 대체
 
-  var firstWalk = transitResult.firstWalkSec;
-  var lastWalk  = transitResult.lastWalkSec;
-
-  // 첫 도보를 따릉이로 대체 가능한지
-  var checkFirst = firstWalk >= WALK_REPLACE_THRESHOLD;
-  // 마지막 도보를 따릉이로 대체 가능한지
-  var checkLast  = lastWalk  >= WALK_REPLACE_THRESHOLD;
-
-  if (!checkFirst && !checkLast) {
-    return Promise.resolve({ type: 'transit', saved: 0, transitResult: transitResult });
-  }
-
-  // 첫 도보 대체: 출발지 → 따릉이 대여 → 첫 번째 대중교통 탑승 정류장
-  var firstLeg  = transitResult.legs[0];
-  var lastLeg   = transitResult.legs[transitResult.legs.length - 1];
-  var firstStop = firstLeg && firstLeg.end   ? { lat: firstLeg.end.lat,   lng: firstLeg.end.lon }   : null;
-  var lastStart = lastLeg  && lastLeg.start  ? { lat: lastLeg.start.lat,  lng: lastLeg.start.lon }  : null;
+  var legs      = transitResult.legs;
+  var firstLeg  = legs[0];
+  var lastLeg   = legs[legs.length - 1];
 
   var bikeChecks = [];
-  if (checkFirst && firstStop) {
+
+  // ① 첫 도보 구간
+  var firstWalk = transitResult.firstWalkSec;
+  var firstStop = firstLeg && firstLeg.end ? { lat: firstLeg.end.lat, lng: firstLeg.end.lon } : null;
+  if (firstWalk >= THRESHOLD && firstStop) {
     bikeChecks.push(
       findBestStations(origin, firstStop, stations)
         .then(function(best) {
@@ -840,14 +840,17 @@ function buildTransitBikeCombo(transitResult, origin, dest, stations) {
             getRoute('foot',    origin,    rentCoord),
             getRoute('fastest', rentCoord, firstStop)
           ]).then(function(r) {
-            var bikeTimeSec = r[0].duration + r[1].duration;
-            var saved = firstWalk - bikeTimeSec;
+            var saved = firstWalk - (r[0].duration + r[1].duration);
             return { phase: 'first', saved: saved, walkIn: r[0], bikeIn: r[1], rent: best.rent, rentCoord: rentCoord };
           });
         }).catch(function() { return null; })
     );
   }
-  if (checkLast && lastStart) {
+
+  // ② 마지막 도보 구간
+  var lastWalk  = transitResult.lastWalkSec;
+  var lastStart = lastLeg && lastLeg.start ? { lat: lastLeg.start.lat, lng: lastLeg.start.lon } : null;
+  if (lastWalk >= THRESHOLD && lastStart) {
     bikeChecks.push(
       findBestStations(lastStart, dest, stations)
         .then(function(best) {
@@ -857,23 +860,85 @@ function buildTransitBikeCombo(transitResult, origin, dest, stations) {
             getRoute('fastest', lastStart, retCoord),
             getRoute('foot',    retCoord,  dest)
           ]).then(function(r) {
-            var bikeTimeSec = r[0].duration + r[1].duration;
-            var saved = lastWalk - bikeTimeSec;
+            var saved = lastWalk - (r[0].duration + r[1].duration);
             return { phase: 'last', saved: saved, bikeOut: r[0], walkOut: r[1], ret: best.ret, retCoord: retCoord };
           });
         }).catch(function() { return null; })
     );
   }
 
+  // ③ 환승 구간 — 환승 대기 10분↑ 또는 환승 도보 10분↑
+  for (var i = 1; i < legs.length - 1; i++) {
+    var leg = legs[i];
+    // 환승 도보 구간
+    if (leg.mode === 'WALK' && leg.sectionTime >= THRESHOLD) {
+      (function(walkLeg, idx) {
+        var from = { lat: walkLeg.start.lat, lng: walkLeg.start.lon };
+        var to   = { lat: walkLeg.end.lat,   lng: walkLeg.end.lon   };
+        bikeChecks.push(
+          findBestStations(from, to, stations)
+            .then(function(best) {
+              if (!best) return null;
+              var rentCoord = { lat: parseFloat(best.rent.stationLatitude), lng: parseFloat(best.rent.stationLongitude) };
+              var retCoord  = { lat: parseFloat(best.ret.stationLatitude),  lng: parseFloat(best.ret.stationLongitude)  };
+              return Promise.all([
+                getRoute('foot',    from,      rentCoord),
+                getRoute('fastest', rentCoord, retCoord),
+                getRoute('foot',    retCoord,  to)
+              ]).then(function(r) {
+                var bikeTotal = r[0].duration + r[1].duration + r[2].duration;
+                var saved = walkLeg.sectionTime - bikeTotal;
+                return { phase: 'transfer_' + idx, saved: saved,
+                  walkIn: r[0], bikeSegment: r[1], walkOut: r[2],
+                  rent: best.rent, ret: best.ret, rentCoord: rentCoord, retCoord: retCoord };
+              });
+            }).catch(function() { return null; })
+        );
+      })(leg, i);
+    }
+    // 환승 대기 시간 (다음 leg의 waitTime 필드)
+    var nextLeg = legs[i + 1];
+    if (nextLeg && nextLeg.waitTime && nextLeg.waitTime >= THRESHOLD) {
+      (function(waitLeg, waitSec) {
+        var from = { lat: waitLeg.start.lat, lng: waitLeg.start.lon };
+        var to   = { lat: waitLeg.end.lat,   lng: waitLeg.end.lon   };
+        bikeChecks.push(
+          findBestStations(from, to, stations)
+            .then(function(best) {
+              if (!best) return null;
+              var rentCoord = { lat: parseFloat(best.rent.stationLatitude), lng: parseFloat(best.rent.stationLongitude) };
+              var retCoord  = { lat: parseFloat(best.ret.stationLatitude),  lng: parseFloat(best.ret.stationLongitude)  };
+              return Promise.all([
+                getRoute('foot',    from,      rentCoord),
+                getRoute('fastest', rentCoord, retCoord),
+                getRoute('foot',    retCoord,  to)
+              ]).then(function(r) {
+                var bikeTotal = r[0].duration + r[1].duration + r[2].duration;
+                var saved = waitSec - bikeTotal;
+                return { phase: 'wait_' + (waitLeg._idx || 0), saved: saved,
+                  walkIn: r[0], bikeSegment: r[1], walkOut: r[2],
+                  rent: best.rent, ret: best.ret, rentCoord: rentCoord, retCoord: retCoord };
+              });
+            }).catch(function() { return null; })
+        );
+      })(nextLeg, nextLeg.waitTime, i);
+    }
+  }
+
+  if (bikeChecks.length === 0) {
+    return Promise.resolve({ type: 'transit', saved: 0, transitResult: transitResult });
+  }
+
   return Promise.all(bikeChecks).then(function(results) {
     var totalSaved = 0;
-    var combo = { type: 'transit+bike', transitResult: transitResult, saved: 0 };
+    var combo = { type: 'transit', transitResult: transitResult, saved: 0, transfers: [] };
     results.forEach(function(r) {
-      if (r && r.saved > 30) { // 30초 이상 절약될 때만 대체
-        totalSaved += r.saved;
-        if (r.phase === 'first') combo.firstBike = r;
-        if (r.phase === 'last')  combo.lastBike  = r;
-      }
+      if (!r || r.saved < MIN_SAVING) return;
+      totalSaved += r.saved;
+      combo.type = 'transit+bike';
+      if (r.phase === 'first') combo.firstBike = r;
+      else if (r.phase === 'last') combo.lastBike = r;
+      else combo.transfers.push(r);
     });
     combo.saved = totalSaved;
     return combo;
