@@ -139,7 +139,8 @@
   <!-- 경로 선택 탭 -->
   <div id="route-select" style="display:none;background:#f5f5f5;padding:10px 16px;border-bottom:1px solid #ddd;">
     <div style="font-size:0.82rem;color:#555;margin-bottom:6px;font-weight:600;">🗺 경로 선택</div>
-    <div style="display:flex;gap:6px;">
+    <!-- 1행: 따릉이 -->
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
       <button id="btn-fastest" onclick="selectRoute('fastest')"
         style="flex:1;padding:8px;border-radius:8px;border:2px solid #00adef;background:#00adef;color:white;font-weight:700;font-size:0.78rem;cursor:pointer;">
         ⚡ 최단 시간<br><span id="fastest-time" style="font-size:0.72rem;font-weight:400;"></span>
@@ -148,11 +149,10 @@
         style="flex:1;padding:8px;border-radius:8px;border:2px solid #ccc;background:white;color:#333;font-weight:700;font-size:0.78rem;cursor:pointer;">
         🚲 자전거 도로 우선<br><span id="bike-time" style="font-size:0.72rem;font-weight:400;color:#666;"></span>
       </button>
-      <button id="btn-transit" onclick="selectRoute('transit')"
-        style="flex:1;padding:8px;border-radius:8px;border:2px solid #ccc;background:white;color:#333;font-weight:700;font-size:0.78rem;cursor:pointer;">
-        🚌 대중교통<br><span id="transit-time" style="font-size:0.72rem;font-weight:400;color:#666;"></span>
-      </button>
     </div>
+    <!-- 2행: 대중교통 3가지 -->
+    <div style="font-size:0.75rem;color:#888;margin-bottom:4px;">🚌 대중교통 경로</div>
+    <div id="transit-buttons" style="display:flex;gap:6px;"></div>
   </div>
   <!-- 도보/대중교통 권장 경고 -->
   <div id="walk-advice" style="display:none;background:#fff3cd;border-left:4px solid #e65100;
@@ -481,27 +481,42 @@ function appBtn(label, action, color) {
 }
 
 // ── 경로 버튼 스타일 업데이트 ─────────────────────────────
-function updateRouteButtons(active) {
-  var styles = {
-    fastest: { active: 'border:2px solid #00adef;background:#00adef;color:white;',
-               inactive: 'border:2px solid #ccc;background:white;color:#333;' },
-    bike:    { active: 'border:2px solid #2e7d32;background:#2e7d32;color:white;',
-               inactive: 'border:2px solid #ccc;background:white;color:#333;' },
-    transit: { active: 'border:2px solid #6a1b9a;background:#6a1b9a;color:white;',
-               inactive: 'border:2px solid #ccc;background:white;color:#333;' }
-  };
-  ['fastest','bike','transit'].forEach(function(t) {
-    var btn = document.getElementById('btn-' + t);
-    if (!btn) return;
-    var base = 'flex:1;padding:8px;border-radius:8px;font-weight:700;font-size:0.78rem;cursor:pointer;';
-    btn.style.cssText = base + (t === active ? styles[t].active : styles[t].inactive);
-  });
+function updateRouteButtons(active, transitIdx) {
+  // 따릉이 버튼
+  var base = 'flex:1;padding:8px;border-radius:8px;font-weight:700;font-size:0.78rem;cursor:pointer;';
+  var btnF = document.getElementById('btn-fastest');
+  var btnB = document.getElementById('btn-bike');
+  if (btnF) btnF.style.cssText = base + (active === 'fastest'
+    ? 'border:2px solid #00adef;background:#00adef;color:white;'
+    : 'border:2px solid #ccc;background:white;color:#333;');
+  if (btnB) btnB.style.cssText = base + (active === 'bike'
+    ? 'border:2px solid #2e7d32;background:#2e7d32;color:white;'
+    : 'border:2px solid #ccc;background:white;color:#333;');
+  // 대중교통 버튼
+  for (var i = 0; i < 3; i++) {
+    var btn = document.getElementById('btn-transit-' + i);
+    if (!btn) continue;
+    btn.style.cssText = base + (active === 'transit' && transitIdx === i
+      ? 'border:2px solid #6a1b9a;background:#6a1b9a;color:white;'
+      : 'border:2px solid #ccc;background:white;color:#333;');
+  }
+}
+
+// 대중교통 경로 선택 (idx: 0~2)
+function selectTransit(idx) {
+  var combos = allRoutes.transitCombos;
+  if (!combos || !combos[idx]) return;
+  allRoutes.transit = combos[idx];
+  allRoutes._transitIdx = idx;
+  selectedRouteType = 'transit';
+  updateRouteButtons('transit', idx);
+  selectRoute('transit');
 }
 
 // ── 경로 선택 ──────────────────────────────────────────
 function selectRoute(type) {
   selectedRouteType = type;
-  updateRouteButtons(type);
+  updateRouteButtons(type, allRoutes._transitIdx || 0);
 
   // 경로선 다시 그리기
   layers.forEach(function(l){
@@ -510,7 +525,7 @@ function selectRoute(type) {
   layers = layers.filter(function(l){ return !(l instanceof L.Polyline); });
 
   if (type === 'transit') {
-    var combo = allRoutes.transit;
+    var combo = allRoutes.transit; // selectTransit()이 미리 세팅
     if (!combo || !combo.transitResult) return;
     var tr = combo.transitResult;
 
@@ -730,42 +745,75 @@ function searchRoute() {
         var bestBikeMin    = Math.round(bestBikeTotal / 60);
         checkWalkAdvice(walkDirect.duration, bestBikeTotal, walkDirectMin, origin, dest);
 
-        // 대중교통 경로 병렬 탐색 (실패해도 무시)
+        // 대중교통 3가지 경로 병렬 탐색
+        var fastMin  = Math.round(fastTotal / 60);
+        var bikeMin2 = Math.round(bikeTotal / 60);
+        allRoutes.transitCombos = [];
+
         fetchTransitRoute(origin, dest)
-          .then(function(transitResult) {
-            return buildTransitBikeCombo(transitResult, origin, dest, stations)
-              .then(function(combo) {
-                allRoutes.transit = combo;
-                var transitMin = Math.round(
-                  (transitResult.totalSec - combo.saved) / 60
-                );
-                var badge = combo.type === 'transit+bike'
-                  ? ' <span style="font-size:0.68rem;background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 4px;">🚲조합</span>'
-                  : '';
-                document.getElementById('transit-time').innerHTML = transitMin + '분' + badge;
+          .then(function(transitResults) {
+            // 각 itinerary마다 따릉이 조합 검토 (병렬)
+            return Promise.all(transitResults.map(function(tr) {
+              return buildTransitBikeCombo(tr, origin, dest, stations)
+                .then(function(combo) { return combo; });
+            }));
+          })
+          .then(function(combos) {
+            allRoutes.transitCombos = combos;
 
-                // 3가지 모두 표시된 상태에서 가장 빠른 것 자동 선택
-                var fastMin  = Math.round(fastTotal / 60);
-                var bikeMin2 = Math.round(bikeTotal / 60);
-                var bestMin  = Math.min(fastMin, bikeMin2, transitMin);
-                var bestType = bestMin === transitMin ? 'transit'
-                             : bestMin === fastMin    ? 'fastest' : 'bike';
+            // 대중교통 버튼 동적 생성
+            var btnContainer = document.getElementById('transit-buttons');
+            btnContainer.innerHTML = '';
+            var fasterBadge = ' <span style="font-size:0.68rem;background:#fff3;border-radius:3px;padding:1px 3px;">⚡더 빠름</span>';
 
-                // 빠름 뱃지 업데이트
-                var fasterBadge = ' <span style="font-size:0.7rem;background:#fff3;border-radius:4px;padding:1px 4px;">⚡더 빠름</span>';
-                document.getElementById('fastest-time').innerHTML =
-                  fastMin + '분' + (bestType === 'fastest' ? fasterBadge : '');
-                document.getElementById('bike-time').innerHTML =
-                  bikeMin2 + '분' + (bestType === 'bike' ? fasterBadge : '');
-                document.getElementById('transit-time').innerHTML =
-                  transitMin + '분' + badge + (bestType === 'transit' ? fasterBadge : '');
+            // 전체 후보 시간 (따릉이 2 + 대중교통 최대 3)
+            var allMins = [fastMin, bikeMin2];
+            var transitMins = combos.map(function(combo) {
+              return Math.round((combo.transitResult.totalSec - combo.saved) / 60);
+            });
+            allMins = allMins.concat(transitMins);
+            var overallBest = Math.min.apply(null, allMins);
 
-                selectedRouteType = bestType;
-                selectRoute(bestType);
-              });
+            // 따릉이 버튼 뱃지 업데이트
+            document.getElementById('fastest-time').innerHTML =
+              fastMin + '분' + (fastMin === overallBest ? fasterBadge : '');
+            document.getElementById('bike-time').innerHTML =
+              bikeMin2 + '분' + (bikeMin2 === overallBest ? fasterBadge : '');
+
+            // 대중교통 버튼 3개 생성
+            var labels = ['경로①', '경로②', '경로③'];
+            var colors = { active: '#6a1b9a', inactive: '#ccc' };
+            combos.forEach(function(combo, i) {
+              var tMin  = transitMins[i];
+              var badge = combo.type === 'transit+bike'
+                ? ' <span style="font-size:0.65rem;background:#e8f5e9;color:#2e7d32;border-radius:3px;padding:1px 3px;">🚲</span>'
+                : '';
+              var isBest = tMin === overallBest;
+              var btn = document.createElement('button');
+              btn.id = 'btn-transit-' + i;
+              btn.style.cssText = 'flex:1;padding:8px;border-radius:8px;border:2px solid ' +
+                (isBest ? colors.active : colors.inactive) + ';background:' +
+                (isBest ? colors.active : 'white') + ';color:' +
+                (isBest ? 'white' : '#333') + ';font-weight:700;font-size:0.75rem;cursor:pointer;';
+              btn.innerHTML = '🚌 ' + labels[i] + '<br><span style="font-size:0.7rem;font-weight:400;">' +
+                tMin + '분' + badge + (isBest ? fasterBadge : '') + '</span>';
+              btn.onclick = (function(idx) { return function() { selectTransit(idx); }; })(i);
+              btnContainer.appendChild(btn);
+            });
+
+            // 전체에서 가장 빠른 것 자동 선택
+            if (overallBest === fastMin) {
+              selectedRouteType = 'fastest'; selectRoute('fastest');
+            } else if (overallBest === bikeMin2) {
+              selectedRouteType = 'bike'; selectRoute('bike');
+            } else {
+              var bestIdx = transitMins.indexOf(overallBest);
+              selectTransit(bestIdx);
+            }
           })
           .catch(function() {
-            document.getElementById('transit-time').textContent = '조회 실패';
+            document.getElementById('transit-buttons').innerHTML =
+              '<span style="font-size:0.8rem;color:#c62828;">대중교통 조회 실패</span>';
           });
 
         setStatus('✅ 경로 탐색 완료 · 교통정보 조회 중...', 'loading');
@@ -781,7 +829,7 @@ function fetchTransitRoute(origin, dest) {
   var body = {
     startX: origin.lng, startY: origin.lat,
     endX:   dest.lng,   endY:   dest.lat,
-    lang: 0, format: 'json', count: 1
+    lang: 0, format: 'json', count: 3
   };
   return fetch(TMAP_TRANSIT, {
     method: 'POST',
@@ -792,9 +840,14 @@ function fetchTransitRoute(origin, dest) {
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
-    var itinerary = d.metaData && d.metaData.plan && d.metaData.plan.itineraries[0];
-    if (!itinerary) throw new Error('대중교통 경로를 찾을 수 없습니다.');
+    var itineraries = d.metaData && d.metaData.plan && d.metaData.plan.itineraries;
+    if (!itineraries || itineraries.length === 0) throw new Error('대중교통 경로를 찾을 수 없습니다.');
+    // 각 itinerary를 개별 파싱 후 배열로 반환
+    return itineraries.map(function(itinerary) { return parseItinerary(itinerary); });
+  });
+}
 
+function parseItinerary(itinerary) {
     var totalDist = itinerary.totalDistance;
     var fare      = itinerary.fare && itinerary.fare.regular && itinerary.fare.regular.totalFare;
     var legs      = itinerary.legs; // 구간 배열
