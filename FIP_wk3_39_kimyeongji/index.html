@@ -549,10 +549,32 @@ function selectRoute(type) {
       return icon + ' ' + (s.name || s.mode) + ' ' + Math.round(s.sectionTime/60) + '분';
     }).join(' → ');
 
-    tabData[0] = { stationName: '대중교통 경로', icon: '🚌', bikes: 0, showBike: false,
+    var baseTab = { stationName: '대중교통 경로', icon: '🚌', bikes: 0, showBike: false,
       fromLabel: segSummary, walkDist: tr.totalDist, walkTime: tr.totalSec - savedSec };
-    tabData[1] = tabData[0];
-    tabData[2] = tabData[0];
+
+    // 따릉이 조합일 때 해당 탭에 대여소 재고 표시
+    tabData[0] = Object.assign({}, baseTab);
+    tabData[1] = Object.assign({}, baseTab);
+    tabData[2] = Object.assign({}, baseTab);
+
+    if (combo.firstBike) {
+      tabData[0] = Object.assign({}, baseTab, {
+        stationName: combo.firstBike.rent.stationName,
+        icon: '🟢', bikes: combo.firstBike.rent.parkingBikeTotCnt, showBike: true,
+        fromLabel: '출발지에서 따릉이 대여 후 대중교통 탑승',
+        walkDist: combo.firstBike.walkIn.distance,
+        walkTime: combo.firstBike.walkIn.duration
+      });
+    }
+    if (combo.lastBike) {
+      tabData[2] = Object.assign({}, baseTab, {
+        stationName: combo.lastBike.ret.stationName,
+        icon: '🟠', bikes: combo.lastBike.ret.parkingBikeTotCnt, showBike: true,
+        fromLabel: '마지막 정류장에서 따릉이 대여 후 목적지로',
+        walkDist: combo.lastBike.walkOut.distance,
+        walkTime: combo.lastBike.walkOut.duration
+      });
+    }
     routeData = null;
     showTab(0);
     document.getElementById('info-panel').classList.add('visible');
