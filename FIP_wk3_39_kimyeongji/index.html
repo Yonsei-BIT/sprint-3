@@ -786,13 +786,26 @@ function fetchTransitRoute(origin, dest) {
     var segments = legs.map(function(leg) {
       var pts = [];
       if (leg.passShape && leg.passShape.linestring) {
+        // 버스/지하철: passShape에 전체 경로
         leg.passShape.linestring.split(' ').forEach(function(pair) {
           var p = pair.split(',');
           pts.push([parseFloat(p[1]), parseFloat(p[0])]);
         });
-      } else if (leg.start) {
-        pts.push([leg.start.lat, leg.start.lon]);
-        pts.push([leg.end.lat, leg.end.lon]);
+      } else if (leg.steps && leg.steps.length) {
+        // 도보: steps 배열의 각 linestring에 상세 경로
+        leg.steps.forEach(function(step) {
+          if (step.linestring) {
+            step.linestring.split(' ').forEach(function(pair) {
+              var p = pair.split(',');
+              pts.push([parseFloat(p[1]), parseFloat(p[0])]);
+            });
+          }
+        });
+      }
+      if (pts.length === 0 && leg.start && leg.end) {
+        // 좌표가 아무것도 없으면 시작/끝점만
+        pts.push([parseFloat(leg.start.lat), parseFloat(leg.start.lon)]);
+        pts.push([parseFloat(leg.end.lat),   parseFloat(leg.end.lon)]);
       }
       coords = coords.concat(pts);
       // 도보 구간은 4.5km/h 기준 재계산, 대중교통 구간은 TMAP 값 그대로
