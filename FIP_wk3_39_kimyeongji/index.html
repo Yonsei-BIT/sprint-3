@@ -775,12 +775,13 @@ function fetchTransitRoute(origin, dest) {
     var itinerary = d.metaData && d.metaData.plan && d.metaData.plan.itineraries[0];
     if (!itinerary) throw new Error('대중교통 경로를 찾을 수 없습니다.');
 
-    var totalSec  = itinerary.duration; // 초
     var totalDist = itinerary.totalDistance;
     var fare      = itinerary.fare && itinerary.fare.regular && itinerary.fare.regular.totalFare;
     var legs      = itinerary.legs; // 구간 배열
 
     // 지도에 그릴 좌표 + 구간 요약 추출
+    // WALK 구간은 TMAP 시간 대신 4.5km/h 기준으로 재계산
+    var totalSec = 0;
     var coords = [];
     var segments = legs.map(function(leg) {
       var pts = [];
@@ -794,19 +795,25 @@ function fetchTransitRoute(origin, dest) {
         pts.push([leg.end.lat, leg.end.lon]);
       }
       coords = coords.concat(pts);
+      // 도보 구간은 4.5km/h 기준 재계산, 대중교통 구간은 TMAP 값 그대로
+      var sectionTime = leg.mode === 'WALK'
+        ? leg.distance / WALK_MPS
+        : leg.sectionTime;
+      totalSec += sectionTime;
       return {
-        mode: leg.mode,          // WALK / SUBWAY / BUS
-        sectionTime: leg.sectionTime,
+        mode: leg.mode,
+        sectionTime: sectionTime,
         distance: leg.distance,
         name: leg.route || leg.routeName || '',
         coords: pts
       };
     });
 
-    // 첫/마지막 도보 구간 시간(초)
-    var firstWalkSec = (legs[0] && legs[0].mode === 'WALK') ? legs[0].sectionTime : 0;
+    // 첫/마지막 도보 구간 시간(초) — 재계산된 값 사용
+    var firstWalkSec = (legs[0] && legs[0].mode === 'WALK')
+      ? legs[0].distance / WALK_MPS : 0;
     var lastWalkSec  = (legs[legs.length-1] && legs[legs.length-1].mode === 'WALK')
-                       ? legs[legs.length-1].sectionTime : 0;
+      ? legs[legs.length-1].distance / WALK_MPS : 0;
 
     return {
       totalSec: totalSec, totalDist: totalDist, fare: fare,
