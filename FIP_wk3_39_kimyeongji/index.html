@@ -895,6 +895,15 @@ function parseItinerary(itinerary) {
       };
     });
 
+    // [DEBUG] leg별 waitTime 구조 확인
+    legs.forEach(function(leg, i) {
+      console.log('[TMAP leg'+i+']', 'mode:', leg.mode,
+        '| sectionTime:', leg.sectionTime,
+        '| waitTime:', leg.waitTime,
+        '| distance:', leg.distance,
+        '| keys:', Object.keys(leg).join(', '));
+    });
+
     // 첫/마지막 도보 구간 시간(초) — 재계산된 값 사용
     var firstWalkSec = (legs[0] && legs[0].mode === 'WALK')
       ? legs[0].distance / WALK_MPS : 0;
@@ -906,7 +915,6 @@ function parseItinerary(itinerary) {
       coords: coords, segments: segments,
       firstWalkSec: firstWalkSec, lastWalkSec: lastWalkSec, legs: legs
     };
-  });
 }
 
 // 따릉이로 대체 시 시간 절약 여부 확인 후 최적 조합 반환
