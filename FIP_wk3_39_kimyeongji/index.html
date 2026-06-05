@@ -181,8 +181,7 @@ const GH_URL     = 'https://graphhopper.com/api/1/route';
 const TT_KEY     = 'yidwUihKMUOLdS4U5MRWwBu1V5wSUGxM';
 const TT_FLOW    = 'https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json';
 const TT_INC     = 'https://api.tomtom.com/traffic/services/5/incidentDetails';
-const TMAP_KEY   = 'Lvoc5ZULzy1GKp3UBZcev30QGw0ttZGC8ouF2Sd9';
-const TMAP_TRANSIT = 'https://apis.openapi.sk.com/transit/routes';
+const TMAP_TRANSIT = '/api/transit'; // server.py가 TMAP으로 프록시
 
 var map = L.map('map').setView([37.5665, 126.9780], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -787,8 +786,7 @@ function fetchTransitRoute(origin, dest) {
   return fetch(TMAP_TRANSIT, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'appKey': TMAP_KEY
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
   })
