@@ -549,7 +549,7 @@ function selectRoute(type) {
       return icon + ' ' + (s.name || s.mode) + ' ' + Math.round(s.sectionTime/60) + '분';
     }).join(' → ');
 
-    tabData[0] = { stationName: '대중교통 경로', icon: '🚌', bikes: 0,
+    tabData[0] = { stationName: '대중교통 경로', icon: '🚌', bikes: 0, showBike: false,
       fromLabel: segSummary, walkDist: tr.totalDist, walkTime: tr.totalSec - savedSec };
     tabData[1] = tabData[0];
     tabData[2] = tabData[0];
@@ -602,7 +602,7 @@ function showTab(idx) {
   var d = tabData[idx];
   if (!d.stationName) return;
   var html = '<div class="station-card">' +
-    '<div class="name">' + d.icon + ' ' + d.stationName + ' ' + bikeBadge(d.bikes) + '</div>' +
+    '<div class="name">' + d.icon + ' ' + d.stationName + (d.showBike !== false ? ' ' + bikeBadge(d.bikes) : '') + '</div>' +
     '<div class="detail">' + d.fromLabel + '에서 약 ' + fmtDist(d.walkDist) + ' 도보 · ' + fmtTime(d.walkTime) + '</div>';
 
   // 탭별 따릉이 앱 버튼
